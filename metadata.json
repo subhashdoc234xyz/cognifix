@@ -1,0 +1,6 @@
+{
+  "name": "CogniFix",
+  "description": "AI-powered adaptive learning and misconception diagnostic platform for STEM mastery",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
