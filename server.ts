@@ -1135,6 +1135,170 @@ Return JSON matching:
     }
   });
 
+  // 6. Flashcard Generator Agent API
+  app.post("/api/agents/generate-flashcards", async (req, res) => {
+    try {
+      const {
+        topic = "STEM Foundations",
+        subject = "Mathematics",
+        misconception = "Core Conceptual Pitfalls",
+        questionStem = "",
+      } = req.body;
+
+      const groqCards = await askGroq(
+        "generator",
+        `Create 4 high-yield spaced retention flashcards targeting student misconception "${misconception}" in ${subject} (${topic}). Context problem: "${questionStem}".
+Return JSON object: {
+  "flashcards": [
+    {
+      "topic": "${topic}",
+      "subject": "${subject}",
+      "frontQuestion": "Clear conceptual question testing the boundary or cognitive trap",
+      "backIntuition": "Intuitive breakthrough explanation that permanently dispels the mistake",
+      "mathematicalProof": "The formal theorem, formula, algebraic rule, or scientific law",
+      "trapWarning": "The specific cognitive trap or misconception to watch out for",
+      "decayLevel": "Critical",
+      "nextReview": "Today"
+    }
+  ]
+}`,
+      );
+
+      if (
+        groqCards &&
+        Array.isArray(groqCards.flashcards) &&
+        groqCards.flashcards.length > 0
+      ) {
+        const cleaned = groqCards.flashcards.map((c: any, i: number) => ({
+          id: `fc_${Date.now()}_${i}`,
+          topic: String(c.topic || topic),
+          subject: String(c.subject || subject),
+          frontQuestion: String(c.frontQuestion || ""),
+          backIntuition: String(c.backIntuition || ""),
+          mathematicalProof: String(c.mathematicalProof || ""),
+          trapWarning: String(c.trapWarning || misconception),
+          status: "due",
+          decayLevel: c.decayLevel || (i === 0 ? "Critical" : "Stable"),
+          nextReview: c.nextReview || (i === 0 ? "Today" : "1d"),
+        }));
+        return res.json({ flashcards: cleaned, source: "groq-generator" });
+      }
+
+      const ai = getAI();
+      if (ai) {
+        try {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.8-flash",
+            contents: `You are the CogniFix Flashcard Generator Agent. Generate 4 spaced repetition flashcards for a student with misconception "${misconception}" in ${subject} (${topic}). Context question: "${questionStem}".
+Format valid JSON:
+{
+  "flashcards": [
+    {
+      "topic": "${topic}",
+      "subject": "${subject}",
+      "frontQuestion": "Clear conceptual question testing the boundary or cognitive trap",
+      "backIntuition": "Intuitive breakthrough explanation",
+      "mathematicalProof": "The formal theorem, formula, algebraic rule, or scientific law",
+      "trapWarning": "The specific cognitive trap or misconception",
+      "decayLevel": "Critical",
+      "nextReview": "Today"
+    }
+  ]
+}`,
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+
+          if (response.text) {
+            const parsed = JSON.parse(response.text);
+            if (
+              Array.isArray(parsed.flashcards) &&
+              parsed.flashcards.length > 0
+            ) {
+              const cleaned = parsed.flashcards.map((c: any, i: number) => ({
+                id: `fc_${Date.now()}_${i}`,
+                topic: String(c.topic || topic),
+                subject: String(c.subject || subject),
+                frontQuestion: String(c.frontQuestion || ""),
+                backIntuition: String(c.backIntuition || ""),
+                mathematicalProof: String(c.mathematicalProof || ""),
+                trapWarning: String(c.trapWarning || misconception),
+                status: "due",
+                decayLevel: c.decayLevel || (i === 0 ? "Critical" : "Stable"),
+                nextReview: c.nextReview || (i === 0 ? "Today" : "1d"),
+              }));
+              return res.json({
+                flashcards: cleaned,
+                source: "gemini-flashcards",
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Gemini flashcard fallback:", e);
+        }
+      }
+
+      const fallbackCards = [
+        {
+          id: `fc_${Date.now()}_0`,
+          topic,
+          subject,
+          frontQuestion: `What is the fundamental rule governing ${topic} that prevents ${misconception}?`,
+          backIntuition: `Always check operations from first principles. Misconceptions usually arise from extending simple scalar intuition to contexts with different algebraic constraints.`,
+          mathematicalProof: `Axiomatic check: verify consistency across both sides of the relation before simplifying.`,
+          trapWarning: misconception,
+          status: "due",
+          decayLevel: "Critical",
+          nextReview: "Today",
+        },
+        {
+          id: `fc_${Date.now()}_1`,
+          topic,
+          subject,
+          frontQuestion: `In ${topic}, what edge case or boundary condition makes ${misconception} fail?`,
+          backIntuition: `Testing small numbers (0, 1, negatives) or asymptotic limits immediately exposes invalid shortcuts.`,
+          mathematicalProof: `Substitute a test value or evaluate limits to isolate the step where equality breaks down.`,
+          trapWarning: `Assuming general rules hold without verifying operator preconditions.`,
+          status: "due",
+          decayLevel: "Stable",
+          nextReview: "1d",
+        },
+        {
+          id: `fc_${Date.now()}_2`,
+          topic,
+          subject,
+          frontQuestion: `Why is the standard simplified form in ${topic} unique and rigorous?`,
+          backIntuition: `Canonical forms eliminate ambiguity and ensure every transformation preserves equivalence.`,
+          mathematicalProof: `Every valid step must be reversible under the same domain restrictions.`,
+          trapWarning: `Performing irreversible operations without stating domain exclusions.`,
+          status: "due",
+          decayLevel: "Stable",
+          nextReview: "2d",
+        },
+        {
+          id: `fc_${Date.now()}_3`,
+          topic,
+          subject,
+          frontQuestion: `How do you verify your result in ${topic} before concluding?`,
+          backIntuition: `Re-substitute the solution into the original un-simplified expression.`,
+          mathematicalProof: `f(x_solution) = Target. Identity must hold for all valid inputs in domain.`,
+          trapWarning: `Skipping back-substitution and relying only on procedural memory.`,
+          status: "due",
+          decayLevel: "Critical",
+          nextReview: "Today",
+        },
+      ];
+
+      res.json({
+        flashcards: fallbackCards,
+        source: "deterministic-flashcards",
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Vite middleware for development vs static build in production
   const isProduction =
     process.env.NODE_ENV === "production" || process.env.RENDER === "true";

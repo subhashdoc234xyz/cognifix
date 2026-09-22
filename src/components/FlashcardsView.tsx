@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FlashcardItem, ViewMode } from '../types';
 import { 
   Layers, 
@@ -22,6 +22,15 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ flashcards, onNa
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [activeSubject, setActiveSubject] = useState<string>('All');
+
+  // Sync internal cards state when parent passes new/updated flashcards (e.g. from AI generation)
+  useEffect(() => {
+    if (flashcards.length > 0) {
+      setCards(flashcards);
+      setCurrentIndex(0);
+      setIsFlipped(false);
+    }
+  }, [flashcards]);
 
   const subjects = ['All', 'Calculus', 'Linear Algebra', 'Physics'];
 

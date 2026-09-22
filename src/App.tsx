@@ -120,6 +120,34 @@ function learningAssetsFor(question: QuizQuestion): {
   };
 }
 
+async function fetchFlashcardsFromAI(
+  question: QuizQuestion,
+): Promise<FlashcardItem[]> {
+  const misconception = question.detectedMisconceptions[0];
+  try {
+    const response = await fetch("/api/agents/generate-flashcards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topic: question.topic,
+        subject: question.subject,
+        misconception: misconception?.name || question.theoremDomain || "Core concept review",
+        questionStem: question.stem,
+      }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.flashcards) && data.flashcards.length > 0) {
+        return data.flashcards as FlashcardItem[];
+      }
+    }
+  } catch (err) {
+    console.warn("AI flashcard generation failed, using static fallback:", err);
+  }
+  // Fallback: return the single static card
+  return learningAssetsFor(question).flashcards;
+}
+
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>("landing");
   const [user, setUser] = useState<UserProfile>(() => {
@@ -276,6 +304,10 @@ export default function App() {
     setMindMapNodes(assets.nodes);
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    // Fire-and-forget AI flashcard generation to replace the single static card
+    fetchFlashcardsFromAI(workspace.question).then((aiCards) => {
+      if (aiCards.length > 1) setFlashcards(aiCards);
+    });
   };
 
   const handleDiagnoseUpload = async (upload: {
@@ -378,6 +410,10 @@ export default function App() {
       const assets = learningAssetsFor(nextQuestion);
       setFlashcards(assets.flashcards);
       setMindMapNodes(assets.nodes);
+      // Fire-and-forget AI flashcard generation
+      fetchFlashcardsFromAI(nextQuestion).then((aiCards) => {
+        if (aiCards.length > 1) setFlashcards(aiCards);
+      });
     }
   };
 
