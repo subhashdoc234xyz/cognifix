@@ -53,6 +53,30 @@ export default function App() {
   const isAuthenticated = !user.isGuest;
 
   useEffect(() => {
+    const accessToken = new URLSearchParams(window.location.hash.slice(1)).get('access_token');
+    if (!accessToken) return;
+    try {
+      const payload = JSON.parse(decodeURIComponent(escape(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))));
+      const metadata = payload.user_metadata || {};
+      setUser({
+        id: payload.sub,
+        name: metadata.full_name || metadata.name || payload.email?.split('@')[0] || 'Student',
+        email: payload.email || '',
+        isGuest: false,
+        role: 'student',
+        streak: 0,
+        xp: 0,
+        tier: 'Self-paced learner',
+        masteryScore: 0
+      });
+      window.history.replaceState(null, '', window.location.pathname);
+      setCurrentView('dashboard');
+    } catch {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('cognifix_user', JSON.stringify(user));
   }, [user]);
 

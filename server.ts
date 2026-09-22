@@ -32,6 +32,33 @@ async function startServer() {
     });
   });
 
+  // Starts the configured Supabase Google OAuth flow without exposing any keys in the browser.
+  app.get("/api/auth/google", async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const appUrl = (process.env.APP_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+
+    if (!supabaseUrl || !anonKey || supabaseUrl.startsWith("MY_") || anonKey.startsWith("MY_")) {
+      return res.status(503).json({ error: "Google sign-in is not configured on this deployment." });
+    }
+
+    try {
+      const authorizeUrl = new URL("/auth/v1/authorize", supabaseUrl);
+      authorizeUrl.searchParams.set("provider", "google");
+      authorizeUrl.searchParams.set("redirect_to", `${appUrl}/`);
+      const upstream = await fetch(authorizeUrl, {
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+        redirect: "manual"
+      });
+      const location = upstream.headers.get("location");
+      if (!location) throw new Error(`OAuth provider did not return a redirect (${upstream.status}).`);
+      res.redirect(location);
+    } catch (error) {
+      console.error("Google OAuth start failed:", error);
+      res.status(502).json({ error: "Unable to start Google sign-in. Confirm Google is enabled in Supabase Authentication." });
+    }
+  });
+
   // 1. Diagnoser Agent API
   app.post("/api/agents/diagnose", async (req, res) => {
     try {

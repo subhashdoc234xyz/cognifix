@@ -21,20 +21,7 @@ const GoogleMark = () => (
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onUpdateUser }) => {
   if (!isOpen) return null;
 
-  const handleGoogleContinue = () => {
-    // This app's current local auth layer has no identity-provider backend.
-    // Keep the experience student-only and never request institution or registration data.
-    onUpdateUser({
-      ...currentUser,
-      id: currentUser.id || `student_${Date.now()}`,
-      name: currentUser.name || 'Student',
-      email: currentUser.email || 'google-connected@cognifix.app',
-      isGuest: false,
-      role: 'student',
-      tier: currentUser.tier === 'New learner' ? 'Self-paced learner' : currentUser.tier
-    });
-    onClose();
-  };
+  const handleGoogleContinue = () => { window.location.assign('/api/auth/google'); };
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#041426]/60 p-4 backdrop-blur-md">
     <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/40 bg-white shadow-2xl shadow-black/30">
