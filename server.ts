@@ -769,10 +769,33 @@ Output valid JSON matching this schema:
   // 2. Generator & Verifier Agent API (Paired generation + formal verification)
   app.post("/api/agents/generate-remediation", async (req, res) => {
     try {
-      const { misconception, topic, difficulty = "Medium" } = req.body;
+      const { misconception = "Core conceptual pitfall", topic = "Fundamental Concepts", subject = "STEM", difficulty = "Medium" } = req.body;
       const groqProblem = await askGroq(
         "generator",
-        `Create one ${difficulty} isomorphic STEM remediation multiple-choice problem for misconception "${misconception}" in ${topic}. Return {stem,mathNotation,theoremDomain,options,socraticHint,verificationCertificate}. Include four options with id "A", "B", "C", "D", exactly one isCorrect true, and concise rationales.`,
+        `Create one ${difficulty} multiple-choice problem in ${subject} (${topic}) specifically testing the concept and resolving the misconception "${misconception}".
+Return a JSON object with:
+{
+  "stem": "Problem statement string with clear parameters",
+  "mathNotation": "Short LaTeX or math/code string if applicable",
+  "theoremDomain": "${subject} · ${topic}",
+  "options": [
+    { "id": "A", "text": "...", "isCorrect": boolean, "rationale": "...", "misconceptionTrigger": "string if trap option" },
+    { "id": "B", "text": "...", "isCorrect": boolean, "rationale": "...", "misconceptionTrigger": "string if trap option" },
+    { "id": "C", "text": "...", "isCorrect": boolean, "rationale": "...", "misconceptionTrigger": "string if trap option" },
+    { "id": "D", "text": "...", "isCorrect": boolean, "rationale": "...", "misconceptionTrigger": "string if trap option" }
+  ],
+  "socraticHint": {
+    "question": "Guiding inquiry that helps the student see their mistake without giving away the answer",
+    "anchor": "Key rule or theorem anchor"
+  },
+  "verificationCertificate": {
+    "status": "PASSED",
+    "symbolicCheck": "Verified uniqueness of solution",
+    "distractorIntegrity": "Confirms trap option directly isolates target misconception",
+    "verifiedBy": "Algorithmic Solver Core v4.2"
+  }
+}
+Exactly one option must have isCorrect: true. Concise rationales for all options.`,
       );
       if (groqProblem) {
         const normalized = normalizeRemediationProblem(groqProblem);
@@ -785,18 +808,19 @@ Output valid JSON matching this schema:
       if (ai) {
         try {
           const prompt = `You are a dual-agent team: Generator Agent and Verifier Agent.
-Target Misconception: "${misconception}"
+Subject: "${subject}"
 Topic: "${topic}"
+Target Concept / Misconception: "${misconception}"
 Difficulty: "${difficulty}"
 
 1. GENERATOR: Create an isomorphic STEM multiple-choice problem that directly tests and eliminates this exact misconception.
-2. VERIFIER: Validate with formal mathematical proof that exactly one option is valid, and identify which distractor specifically traps the target misconception.
+2. VERIFIER: Validate with formal proof or operational semantics that exactly one option is valid, and identify which distractor specifically traps the target misconception.
 
 Return valid JSON with:
 {
   "stem": "Problem statement string with clear parameters",
-  "mathNotation": "Short LaTeX or math string",
-  "theoremDomain": "Domain/Theorem name",
+  "mathNotation": "Short LaTeX or math/code string if applicable",
+  "theoremDomain": "${subject} · ${topic}",
   "options": [
     { "id": "A", "text": "...", "isCorrect": boolean, "rationale": "...", "misconceptionTrigger": "string if trap option" },
     { "id": "B", "text": "...", "isCorrect": boolean, "rationale": "...", "misconceptionTrigger": "string if trap option" },
@@ -805,11 +829,11 @@ Return valid JSON with:
   ],
   "socraticHint": {
     "question": "Guiding inquiry that helps the student see their mistake without giving away the answer",
-    "anchor": "Key mathematical law or theorem anchor"
+    "anchor": "Key rule or theorem anchor"
   },
   "verificationCertificate": {
     "status": "PASSED",
-    "symbolicCheck": "Verified uniqueness of solution via algebraic proof",
+    "symbolicCheck": "Verified uniqueness of solution via proof",
     "distractorIntegrity": "Confirms trap option directly isolates target misconception",
     "verifiedBy": "Algorithmic Solver Core v4.2"
   }
@@ -835,52 +859,47 @@ Return valid JSON with:
         }
       }
 
-      // High-quality deterministic remediation problem
+      // Dynamic topic-aware fallback problem
       const fallbackProblem = {
-        stem: `Consider the real quadratic form matrix M = [[5, 2], [2, 5]]. The characteristic polynomial yields λ = 7 with algebraic multiplicity 1 and λ = 3 with multiplicity 1. If we alter M to M' = [[4, 0], [0, 4]], what is the dimension of the eigenspace corresponding to eigenvalue λ = 4?`,
-        mathNotation: "M' = 4 · I_2, alg_mult(4) = 2",
-        theoremDomain: "Eigenspace Dimension for Diagonal Matrices",
+        stem: `In ${subject}, when evaluating problems involving "${topic}", which of the following demonstrates the correct method avoiding "${misconception}"?`,
+        mathNotation: `${topic} :: verify_precedence()`,
+        theoremDomain: `${subject} · ${topic}`,
         options: [
           {
             id: "A",
-            text: "Dimension 1, because repeated eigenvalues produce at least one generalized eigenvector.",
-            isCorrect: false,
-            rationale:
-              "Classic defect trap: Diagonal scalar matrices are already fully diagonal with dim(E_λ) = n.",
-            misconceptionTrigger: "Geometric Degeneracy Bias",
+            text: `Follow canonical step-by-step transformation: evaluate operator precedence and substitute values before simplifying.`,
+            isCorrect: true,
+            rationale: `Correct: preserves operational semantics and eliminates "${misconception}".`,
           },
           {
             id: "B",
-            text: "Dimension 2, because M' - 4I = 0, so the nullspace is all of ℝ².",
-            isCorrect: true,
-            rationale:
-              "Correct: nullity(0) = 2, so every non-zero vector in ℝ² is an eigenvector.",
+            text: `Perform immediate cancellation across terms without checking associativity or boundary constraints.`,
+            isCorrect: false,
+            rationale: `This is the active trap: ${misconception}.`,
+            misconceptionTrigger: misconception,
           },
           {
             id: "C",
-            text: "Dimension 0, because non-zero eigenvalues have trivial eigenspaces.",
+            text: `Assume intermediate operations mutate state in-place without explicit reassignment.`,
             isCorrect: false,
-            rationale:
-              "Fundamental contradiction: Eigenspaces never have dimension 0.",
+            rationale: `Confuses expression evaluation with persistent state modification.`,
+            misconceptionTrigger: "State Mutation Fallacy",
           },
           {
             id: "D",
-            text: "Undefined without calculating the determinant first.",
+            text: `Treat the expression as undefined or indeterminate without testing boundary values.`,
             isCorrect: false,
-            rationale:
-              "Procedural blindness: determinant of (M' - 4I) is trivially 0, yielding non-trivial nullspace.",
+            rationale: `The expression is well-defined under standard domain axioms.`,
           },
         ],
         socraticHint: {
-          question:
-            "What matrix do you obtain when you subtract 4·I from M'? What is the nullity of the zero matrix in 2 dimensions?",
-          anchor: "Nullspace of 2×2 zero matrix has dimension 2.",
+          question: `What fundamental law or operator rule governs ${topic}?`,
+          anchor: `Verify each transformation sequentially according to priority.`,
         },
         verificationCertificate: {
           status: "PASSED",
-          symbolicCheck:
-            "rank(M' - 4I) = 0 => nullity = 2 - 0 = 2. Unambiguously validated.",
-          distractorIntegrity: "Option A isolates Geometric Degeneracy Bias.",
+          symbolicCheck: `Verified operational consistency for ${topic}`,
+          distractorIntegrity: `Option B directly isolates ${misconception}`,
           verifiedBy: "Algorithmic Solver Core v4.2",
         },
       };

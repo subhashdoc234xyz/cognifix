@@ -24,7 +24,7 @@ interface MindMapViewProps {
   nodes: MindMapNode[];
   question?: QuizQuestion;
   onNavigate: (view: ViewMode) => void;
-  onSelectNodeForPractice?: (node: MindMapNode) => void;
+  onSelectNodeForPractice?: (node: MindMapNode) => Promise<void> | void;
   onUpdateNodeStatus?: (nodeId: string, status: MindMapNode['status']) => void;
 }
 
@@ -36,6 +36,7 @@ export const MindMapView: React.FC<MindMapViewProps> = ({
   onUpdateNodeStatus,
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isGeneratingPractice, setIsGeneratingPractice] = useState(false);
 
   // Default to selecting the active trap (the concept the student missed)
   useEffect(() => {
@@ -48,6 +49,23 @@ export const MindMapView: React.FC<MindMapViewProps> = ({
   }, [nodes, selectedNodeId]);
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || nodes[0];
+
+  const handlePracticeClick = async (nodeToPractice: MindMapNode) => {
+    if (isGeneratingPractice) return;
+    setIsGeneratingPractice(true);
+    try {
+      if (onSelectNodeForPractice) {
+        await onSelectNodeForPractice(nodeToPractice);
+      } else {
+        onNavigate('practice-and-quiz');
+      }
+    } catch (e) {
+      console.error('Practice launch error:', e);
+      onNavigate('practice-and-quiz');
+    } finally {
+      setIsGeneratingPractice(false);
+    }
+  };
 
   const primaryMisconception = question?.detectedMisconceptions?.[0];
   const correctOption = question?.options?.find(o => o.isCorrect);
@@ -76,15 +94,24 @@ export const MindMapView: React.FC<MindMapViewProps> = ({
 
         {/* Action Button */}
         <button
-          onClick={() => {
-            if (selectedNode && onSelectNodeForPractice) onSelectNodeForPractice(selectedNode);
-            onNavigate('practice-and-quiz');
-          }}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#006096] hover:bg-[#007abc] text-white text-xs font-bold transition-all shadow-md hover:shadow-lg shrink-0"
+          onClick={() => selectedNode && handlePracticeClick(selectedNode)}
+          disabled={isGeneratingPractice}
+          className={`inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#006096] hover:bg-[#007abc] text-white text-xs font-bold transition-all shadow-md hover:shadow-lg shrink-0 ${
+            isGeneratingPractice ? 'opacity-80 cursor-wait' : ''
+          }`}
         >
-          <Target className="w-4 h-4" />
-          <span>Practice This Concept Now</span>
-          <ArrowRight className="w-4 h-4" />
+          {isGeneratingPractice ? (
+            <>
+              <Sparkles className="w-4 h-4 animate-spin text-cyan-200" />
+              <span>Generating Targeted Practice with AI...</span>
+            </>
+          ) : (
+            <>
+              <Target className="w-4 h-4" />
+              <span>Practice This Concept Now</span>
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
         </button>
       </div>
 
@@ -358,14 +385,23 @@ export const MindMapView: React.FC<MindMapViewProps> = ({
               Ready to test if you've mastered this concept?
             </span>
             <button
-              onClick={() => {
-                if (onSelectNodeForPractice) onSelectNodeForPractice(selectedNode);
-                onNavigate('practice-and-quiz');
-              }}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-[#006096] hover:bg-[#007abc] text-white text-xs sm:text-sm font-bold transition-all shadow-md hover:shadow-lg"
+              onClick={() => selectedNode && handlePracticeClick(selectedNode)}
+              disabled={isGeneratingPractice}
+              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-[#006096] hover:bg-[#007abc] text-white text-xs sm:text-sm font-bold transition-all shadow-md hover:shadow-lg ${
+                isGeneratingPractice ? 'opacity-80 cursor-wait' : ''
+              }`}
             >
-              <span>I Understand It Now — Test Me On This Concept</span>
-              <ArrowRight className="w-4 h-4" />
+              {isGeneratingPractice ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-spin text-cyan-200" />
+                  <span>Generating Targeted Practice with AI Agents...</span>
+                </>
+              ) : (
+                <>
+                  <span>I Understand It Now — Test Me On This Concept</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </div>
         </div>

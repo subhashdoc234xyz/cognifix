@@ -518,6 +518,137 @@ export default function App() {
     }
   };
 
+  const handleSelectNodeForPractice = async (node: MindMapNode) => {
+    try {
+      const misconception =
+        node.misconceptionRisk ||
+        node.commonMistake ||
+        node.keyTakeaway ||
+        node.description;
+
+      const response = await fetch("/api/agents/generate-remediation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: node.label,
+          subject: node.subject,
+          misconception,
+          difficulty: node.level === 3 ? "Hard" : node.level === 2 ? "Medium" : "Easy",
+        }),
+      });
+
+      let problemData: any = null;
+      if (response.ok) {
+        const json = await response.json();
+        if (json.problem && json.problem.stem) {
+          problemData = json.problem;
+        }
+      }
+
+      if (!problemData) {
+        problemData = {
+          stem: `In ${node.subject}, when evaluating ${node.label}, which approach avoids the trap of "${misconception}"?`,
+          mathNotation: node.exampleOrFormula || undefined,
+          theoremDomain: `${node.subject} · ${node.label}`,
+          options: [
+            {
+              id: "A",
+              text: `Apply step-by-step verification: ${node.keyTakeaway || "verify each operational step from first principles"}`,
+              isCorrect: true,
+              rationale: "Correctly preserves operational order and mathematical equivalence.",
+            },
+            {
+              id: "B",
+              text: `Perform immediate cancellation without checking preconditions or variable scope.`,
+              isCorrect: false,
+              rationale: `This triggers ${misconception}`,
+              misconceptionTrigger: misconception,
+            },
+            {
+              id: "C",
+              text: `Assume intermediate operations update state in-place without explicit assignment.`,
+              isCorrect: false,
+              rationale: "Confuses expression evaluation with persistent state modification.",
+            },
+            {
+              id: "D",
+              text: `Treat the expression as undefined without evaluating domain boundaries.`,
+              isCorrect: false,
+              rationale: "The expression is well-formed under standard axioms.",
+            },
+          ],
+          socraticHint: {
+            question: `What fundamental rule in ${node.label} applies here?`,
+            anchor: node.keyTakeaway || "Check your work carefully against first principles.",
+          },
+        };
+      }
+
+      const now = new Date().toISOString();
+      const questionId = `concept_q_${Date.now()}`;
+      const newQuestion: QuizQuestion = {
+        id: questionId,
+        subject: node.subject,
+        topic: node.label,
+        code: `CONCEPT-0${node.level}`,
+        questionNumber: 1,
+        totalQuestions: 5,
+        sourceQuestion: node.description,
+        stem: problemData.stem,
+        mathNotation: problemData.mathNotation || node.exampleOrFormula,
+        mathObjective: node.keyTakeaway || `Master ${node.label}`,
+        theoremDomain: problemData.theoremDomain || `${node.subject} · ${node.label}`,
+        options: problemData.options,
+        socraticHint: problemData.socraticHint || {
+          question: `What rule in ${node.label} governs this?`,
+          anchor: node.keyTakeaway || "Check your work carefully.",
+        },
+        detectedMisconceptions: [
+          {
+            name: node.misconceptionRisk || node.commonMistake || `${node.label} Pitfall`,
+            errorTag: `CONCEPT-0${node.level}`,
+            description: node.description,
+            historicalFrequency: "Targeted Concept Practice",
+            status: "Active Queue",
+            triggerOption: "B",
+          },
+        ],
+        knowledgeTree: {
+          nodeId: node.id,
+          title: node.label,
+          relationship: `Targeted Concept Calibration from Knowledge Graph`,
+        },
+      };
+
+      // Store in localStorage & workspaces so user can return to it!
+      const workspaceId = `concept-workspace-${Date.now()}`;
+      const workspace: UploadedLearningWorkspace = {
+        id: workspaceId,
+        uploadPath: workspaceId,
+        uploadName: `${node.label} (${node.subject})`,
+        title: `${node.subject} · ${node.label}`,
+        question: newQuestion,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      setUploadedWorkspaces((previous) => [
+        workspace,
+        ...previous.filter((item) => item.id !== workspace.id),
+      ]);
+      localStorage.setItem(
+        uploadDiagnosticStorageKey(user.id),
+        JSON.stringify(newQuestion),
+      );
+
+      // Activate workspace (sets active question, generates flashcards & mindmap for new concept, and switches view)
+      activateWorkspace(workspace, "practice-and-quiz");
+    } catch (err) {
+      console.error("Error generating concept practice:", err);
+      setCurrentView("practice-and-quiz");
+    }
+  };
+
   const handleQuestionCompleted = (isCorrect: boolean, errorTag?: string) => {
     setUser((prev) => ({
       ...prev,
@@ -611,20 +742,7 @@ export default function App() {
                 prev.map((n) => (n.id === nodeId ? { ...n, status } : n))
               );
             }}
-            onSelectNodeForPractice={(node) => {
-              if (
-                activeQuestion &&
-                (activeQuestion.topic.toLowerCase().includes(node.label.toLowerCase()) ||
-                  activeQuestion.subject.toLowerCase() === node.subject.toLowerCase())
-              ) {
-                // Keep active context
-              } else if (node.subject.toLowerCase().includes("calculus")) {
-                setActiveQuestion(sampleCalculusQuestion);
-              } else {
-                setActiveQuestion(sampleQuizQuestion);
-              }
-              setCurrentView("practice-and-quiz");
-            }}
+            onSelectNodeForPractice={handleSelectNodeForPractice}
           />
         )}
 
