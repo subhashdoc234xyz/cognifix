@@ -207,22 +207,30 @@ export const initialMindMapNodes: MindMapNode[] = [
     label: 'Limits & Asymptotics',
     subject: 'Calculus',
     level: 1,
-    x: 80,
+    x: 120,
     y: 180,
     status: 'mastered',
     prerequisites: [],
-    description: 'Foundational behavior of functions approaching boundary points and infinity.'
+    description: 'Foundational behavior of functions approaching boundary points and infinity.',
+    keyTakeaway: 'Limits examine what values a function approaches arbitrarily closely, not what happens upon direct evaluation.',
+    exampleOrFormula: 'lim_(x→a) f(x) = L  ⟺  ∀ε>0, ∃δ>0 s.t. 0<|x-a|<δ ⟹ |f(x)-L|<ε',
+    commonMistake: 'Treating infinity (∞) as an algebraic scalar number that cancels out.',
+    whyItMatters: 'Forms the strict foundation upon which derivatives, integrals, and continuity are constructed.'
   },
   {
     id: 'node_continuity',
     label: 'Continuity & IVT',
     subject: 'Calculus',
     level: 1,
-    x: 220,
-    y: 100,
+    x: 120,
+    y: 340,
     status: 'mastered',
     prerequisites: ['node_limits'],
-    description: 'Topological smoothness and Intermediate Value guarantees.'
+    description: 'Topological smoothness and Intermediate Value guarantees.',
+    keyTakeaway: 'A function is continuous at c if and only if lim_(x→c) f(x) = f(c). No jumps, asymptotes, or holes.',
+    exampleOrFormula: 'f(c) exists, lim_(x→c) f(x) exists, and lim_(x→c) f(x) = f(c)',
+    commonMistake: 'Assuming a function is continuous everywhere without checking domain exclusions like division by zero.',
+    whyItMatters: 'Guarantees root existence via Intermediate Value Theorem and enables Extreme Value Theorem.'
   },
   {
     id: 'node_derivatives',
@@ -230,45 +238,61 @@ export const initialMindMapNodes: MindMapNode[] = [
     subject: 'Calculus',
     level: 2,
     x: 360,
-    y: 130,
+    y: 140,
     status: 'mastered',
     prerequisites: ['node_limits', 'node_continuity'],
-    description: 'Instantaneous rate of change, tangent slopes, and linear approximations.'
+    description: 'Instantaneous rate of change, tangent slopes, and linear approximations.',
+    keyTakeaway: 'The derivative is the limit of difference quotients: f\'(x) = lim_(h→0) [f(x+h) - f(x)] / h.',
+    exampleOrFormula: 'df/dx = lim_(Δx→0) Δy/Δx; Linearization: L(x) = f(a) + f\'(a)(x-a)',
+    commonMistake: 'Memorizing power rules mechanically without understanding when the Chain Rule is strictly required.',
+    whyItMatters: 'Core building block for optimization, gradient descent, and physics rate equations.'
   },
   {
     id: 'node_trap_infinity',
-    label: 'Trap #2: Arithmetic on ∞',
+    label: 'Trap: Arithmetic on ∞',
     subject: 'Calculus',
     level: 2,
-    x: 230,
-    y: 280,
+    x: 360,
+    y: 320,
     status: 'vulnerable',
-    misconceptionRisk: 'Active Bug: ∞/∞ = 1 fallacy',
+    misconceptionRisk: 'Active Trap: ∞/∞ = 1 fallacy',
     prerequisites: ['node_limits'],
-    description: 'Vulnerability point where students substitute infinity as a standard scalar quantity.'
+    description: 'Vulnerability point where students substitute infinity as a standard scalar quantity.',
+    keyTakeaway: '∞ is a limiting behavior, never a number. Forms like ∞/∞, 0/0, and ∞ - ∞ are indeterminate and require asymptotic dominance analysis or L\'Hôpital\'s Rule.',
+    exampleOrFormula: 'lim_(x→∞) (3x²)/(5x²) = 3/5, NOT (3*∞)/(5*∞) = 1. Compare degrees of growth!',
+    commonMistake: 'Canceling ∞ in the numerator and denominator as if it were a common algebraic factor.',
+    whyItMatters: 'Failing this trap corrupts all subsequent work in multivariable convergence, improper integrals, and power series.'
   },
   {
     id: 'node_gradients',
     label: 'Gradients & Directional Derivs',
     subject: 'Calculus',
     level: 3,
-    x: 520,
-    y: 200,
+    x: 600,
+    y: 160,
     status: 'vulnerable',
-    misconceptionRisk: 'Confusing gradient magnitude with projection',
+    misconceptionRisk: 'Confusing gradient magnitude with directional projection',
     prerequisites: ['node_derivatives'],
-    description: 'Multidimensional steepness vector and tangent plane normals.'
+    description: 'Multidimensional steepness vector and tangent plane normals.',
+    keyTakeaway: '∇f points in the direction of greatest instantaneous increase; D_u f = ∇f · u (where u is a unit vector).',
+    exampleOrFormula: '∇f = [∂f/∂x, ∂f/∂y, ∂f/∂z]ᵀ; |∇f| = maximum rate of change',
+    commonMistake: 'Taking directional derivative along vector v without normalizing it to unit length (|u| = 1).',
+    whyItMatters: 'Foundational to backpropagation in Deep Learning, fluid dynamics, and physics field potentials.'
   },
   {
     id: 'node_spectral',
     label: 'Orthogonal Spectral Theorem',
     subject: 'Linear Algebra',
     level: 3,
-    x: 680,
-    y: 280,
+    x: 600,
+    y: 340,
     status: 'unlocked',
     prerequisites: ['node_gradients'],
-    description: 'Eigenspace decomposition of real symmetric transformations into orthonormal axes.'
+    description: 'Eigenspace decomposition of real symmetric transformations into orthonormal axes.',
+    keyTakeaway: 'Any real symmetric matrix can be orthogonally diagonalized: A = Q Λ Qᵀ where Q is orthonormal.',
+    exampleOrFormula: 'A v_i = λ_i v_i with ⟨v_i, v_j⟩ = δ_ij; A = ∑ λ_i v_i v_iᵀ',
+    commonMistake: 'Assuming non-symmetric matrices always have a complete set of orthogonal eigenvectors.',
+    whyItMatters: 'Powers Principal Component Analysis (PCA), quantum state observable operators, and stability analysis.'
   }
 ];
 

@@ -78,6 +78,90 @@ function learningAssetsFor(question: QuizQuestion): {
   nodes: MindMapNode[];
 } {
   const misconception = question.detectedMisconceptions[0];
+  const topic = question.topic;
+  const subject = question.subject;
+  const miscName = misconception?.name || "Targeted Operation Review";
+  const miscDesc = misconception?.description || "Common misconception detected from student error.";
+
+  const nodes: MindMapNode[] = [
+    {
+      id: `node_prereq_${question.id}`,
+      label: `${topic} Foundations`,
+      subject,
+      level: 1,
+      x: 120,
+      y: 180,
+      status: "mastered",
+      prerequisites: [],
+      description: `Prerequisite definitions, domain restrictions, and primitive rules governing ${topic}.`,
+      keyTakeaway: `Before performing compound steps, establish valid variable definitions and boundaries.`,
+      exampleOrFormula: question.mathNotation || `Input validity check: verify preconditions on ${topic}`,
+      commonMistake: `Skipping basic definitions and assuming operations work on arbitrary types without validation.`,
+      whyItMatters: `Without foundational grounding, arithmetic transformations yield undefined states.`,
+    },
+    {
+      id: `node_core_${question.id}`,
+      label: `Core Mechanism: ${topic}`,
+      subject,
+      level: 1,
+      x: 120,
+      y: 340,
+      status: "mastered",
+      prerequisites: [`node_prereq_${question.id}`],
+      description: question.mathObjective || `Fundamental computational mechanism and evaluation logic in ${topic}.`,
+      keyTakeaway: `Evaluate step-by-step strictly following operator precedence and algebraic identities.`,
+      exampleOrFormula: question.options.find(o => o.isCorrect)?.rationale || question.socraticHint.anchor,
+      commonMistake: `Executing multiple mixed operations simultaneously in mental arithmetic.`,
+      whyItMatters: `Forms the computational engine of all problems in ${topic}.`,
+    },
+    {
+      id: `node_trap_${question.id}`,
+      label: `Trap: ${miscName.length > 25 ? miscName.slice(0, 24) + '…' : miscName}`,
+      subject,
+      level: 2,
+      x: 360,
+      y: 260,
+      status: "vulnerable",
+      misconceptionRisk: `Active Trap: ${miscName}`,
+      prerequisites: [`node_core_${question.id}`],
+      description: miscDesc,
+      keyTakeaway: question.socraticHint.anchor || `Carefully verify each transformation instead of relying on procedural shortcuts.`,
+      exampleOrFormula: `Watch out: ${miscName}. Always test against first principles.`,
+      commonMistake: miscDesc,
+      whyItMatters: `Resolving this barrier prevents cascading errors into advanced problems.`,
+    },
+    {
+      id: `node_app_${question.id}`,
+      label: `Boundary & Rule Verification`,
+      subject,
+      level: 2,
+      x: 360,
+      y: 130,
+      status: "unlocked",
+      prerequisites: [`node_core_${question.id}`],
+      description: `Techniques to test corner cases, zero values, and inverse checks in ${topic}.`,
+      keyTakeaway: `Back-substitute solutions into original statements to verify correctness before concluding.`,
+      exampleOrFormula: `Check: f(result) === target_constraint`,
+      commonMistake: `Assuming an answer is correct because it matches an intuitive pattern without back-checking.`,
+      whyItMatters: `Guarantees self-correction and exam accuracy.`,
+    },
+    {
+      id: `node_adv_${question.id}`,
+      label: `Advanced Synthesis`,
+      subject,
+      level: 3,
+      x: 600,
+      y: 240,
+      status: "unlocked",
+      prerequisites: [`node_trap_${question.id}`, `node_app_${question.id}`],
+      description: question.theoremDomain || `Higher-order compositions and advanced theorems building upon ${topic}.`,
+      keyTakeaway: `Complex systems are simply chains of rigorously verified elementary steps.`,
+      exampleOrFormula: `Composed: TargetTheorem( verified_${topic}_core )`,
+      commonMistake: `Attempting optimization or complex theorems before basic mechanics are solidified.`,
+      whyItMatters: `Prepares you for collegiate and olympiad level STEM problem solving.`,
+    },
+  ];
+
   return {
     flashcards: [
       {
@@ -100,24 +184,35 @@ function learningAssetsFor(question: QuizQuestion): {
         nextReview: "Today",
       },
     ],
-    nodes: [
-      {
-        id: `upload-node-${question.id}`,
-        label: question.topic,
-        subject: question.subject,
-        level: 1,
-        x: 360,
-        y: 220,
-        status: "vulnerable",
-        misconceptionRisk: misconception?.name || "Uploaded-work review",
-        prerequisites: [],
-        description:
-          question.mathObjective ||
-          question.theoremDomain ||
-          "Concept extracted from your uploaded work.",
-      },
-    ],
+    nodes,
   };
+}
+
+async function fetchMindMapFromAI(
+  question: QuizQuestion,
+): Promise<MindMapNode[]> {
+  const misconception = question.detectedMisconceptions[0];
+  try {
+    const response = await fetch("/api/agents/generate-mindmap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topic: question.topic,
+        subject: question.subject,
+        misconception: misconception?.name || question.theoremDomain || "Core concept review",
+        questionStem: question.stem,
+      }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.nodes) && data.nodes.length >= 3) {
+        return data.nodes as MindMapNode[];
+      }
+    }
+  } catch (err) {
+    console.warn("AI mindmap generation failed, using static fallback:", err);
+  }
+  return learningAssetsFor(question).nodes;
 }
 
 async function fetchFlashcardsFromAI(
@@ -304,9 +399,12 @@ export default function App() {
     setMindMapNodes(assets.nodes);
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: "smooth" });
-    // Fire-and-forget AI flashcard generation to replace the single static card
+    // Fire-and-forget AI flashcard & mind map generation
     fetchFlashcardsFromAI(workspace.question).then((aiCards) => {
       if (aiCards.length > 1) setFlashcards(aiCards);
+    });
+    fetchMindMapFromAI(workspace.question).then((aiNodes) => {
+      if (aiNodes.length > 1) setMindMapNodes(aiNodes);
     });
   };
 
@@ -410,9 +508,12 @@ export default function App() {
       const assets = learningAssetsFor(nextQuestion);
       setFlashcards(assets.flashcards);
       setMindMapNodes(assets.nodes);
-      // Fire-and-forget AI flashcard generation
+      // Fire-and-forget AI flashcard & mind map generation
       fetchFlashcardsFromAI(nextQuestion).then((aiCards) => {
         if (aiCards.length > 1) setFlashcards(aiCards);
+      });
+      fetchMindMapFromAI(nextQuestion).then((aiNodes) => {
+        if (aiNodes.length > 1) setMindMapNodes(aiNodes);
       });
     }
   };
@@ -504,8 +605,19 @@ export default function App() {
           <MindMapView
             nodes={mindMapNodes}
             onNavigate={handleNavigate}
+            onUpdateNodeStatus={(nodeId, status) => {
+              setMindMapNodes((prev) =>
+                prev.map((n) => (n.id === nodeId ? { ...n, status } : n))
+              );
+            }}
             onSelectNodeForPractice={(node) => {
-              if (node.subject.toLowerCase().includes("calculus")) {
+              if (
+                activeQuestion &&
+                (activeQuestion.topic.toLowerCase().includes(node.label.toLowerCase()) ||
+                  activeQuestion.subject.toLowerCase() === node.subject.toLowerCase())
+              ) {
+                // Keep active context
+              } else if (node.subject.toLowerCase().includes("calculus")) {
                 setActiveQuestion(sampleCalculusQuestion);
               } else {
                 setActiveQuestion(sampleQuizQuestion);

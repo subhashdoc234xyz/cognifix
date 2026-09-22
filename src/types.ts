@@ -113,6 +113,10 @@ export interface MindMapNode {
   misconceptionRisk?: string;
   prerequisites: string[];
   description: string;
+  keyTakeaway?: string;
+  exampleOrFormula?: string;
+  commonMistake?: string;
+  whyItMatters?: string;
 }
 
 export interface RoadmapStep {

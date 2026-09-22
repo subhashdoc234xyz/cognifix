@@ -1299,6 +1299,234 @@ Format valid JSON:
     }
   });
 
+  app.post("/api/agents/generate-mindmap", async (req, res) => {
+    try {
+      const {
+        topic = "Core Fundamentals",
+        subject = "STEM",
+        misconception = "Fundamental Operation Trap",
+        questionStem = "",
+      } = req.body;
+
+      const prompt = `You are an expert pedagogical concept designer. Create a high-yield concept knowledge graph of 5 interconnected nodes for a student learning "${topic}" in ${subject}, specifically targeting the misconception "${misconception}".
+The mind map MUST actively teach the concepts step-by-step so the student understands the intuition and avoids the trap.
+Context question: "${questionStem}".
+
+Return a JSON object with:
+{
+  "nodes": [
+    {
+      "id": "node_1",
+      "label": "Foundation concept name",
+      "subject": "${subject}",
+      "level": 1,
+      "status": "mastered",
+      "prerequisites": [],
+      "description": "Clear 2-sentence explanation of what this foundation means.",
+      "keyTakeaway": "Core principle to remember.",
+      "exampleOrFormula": "Short code or formula example.",
+      "commonMistake": "What people misunderstand.",
+      "whyItMatters": "Why this foundation is critical."
+    },
+    {
+      "id": "node_2",
+      "label": "Core Mechanism",
+      "subject": "${subject}",
+      "level": 1,
+      "status": "mastered",
+      "prerequisites": ["node_1"],
+      "description": "How the central mechanism operates.",
+      "keyTakeaway": "The essential rule of operation.",
+      "exampleOrFormula": "Illustrative example.",
+      "commonMistake": "Typical confusion.",
+      "whyItMatters": "Direct bridge to practice."
+    },
+    {
+      "id": "node_3",
+      "label": "Trap Point: ${misconception.slice(0, 30)}",
+      "subject": "${subject}",
+      "level": 2,
+      "status": "vulnerable",
+      "misconceptionRisk": "${misconception}",
+      "prerequisites": ["node_2"],
+      "description": "Detailed explanation of why this cognitive trap occurs and how to fix it.",
+      "keyTakeaway": "Counter-intuitive truth that prevents the error.",
+      "exampleOrFormula": "Correct method vs incorrect trap demonstration.",
+      "commonMistake": "${misconception}",
+      "whyItMatters": "Overcoming this allows mastering higher-order problems."
+    },
+    {
+      "id": "node_4",
+      "label": "Applied Problem Solving",
+      "subject": "${subject}",
+      "level": 2,
+      "status": "unlocked",
+      "prerequisites": ["node_2"],
+      "description": "Applying the corrected concept to intermediate real-world scenarios.",
+      "keyTakeaway": "Verification technique and rule of thumb.",
+      "exampleOrFormula": "Worked problem example.",
+      "commonMistake": "Skipping checks or boundary conditions.",
+      "whyItMatters": "Ensures repeatability."
+    },
+    {
+      "id": "node_5",
+      "label": "Advanced Synthesis",
+      "subject": "${subject}",
+      "level": 3,
+      "status": "unlocked",
+      "prerequisites": ["node_3", "node_4"],
+      "description": "Higher-level theorems or complex algorithmic patterns enabled by mastering this concept.",
+      "keyTakeaway": "Broader architectural / mathematical takeaway.",
+      "exampleOrFormula": "Advanced scenario pattern.",
+      "commonMistake": "Overgeneralizing or applying without preconditions.",
+      "whyItMatters": "Mastery milestone for the domain."
+    }
+  ]
+}`;
+
+      let rawNodes: any[] = [];
+      const groqResult = await askGroq("generator", prompt);
+      if (groqResult && Array.isArray(groqResult.nodes) && groqResult.nodes.length >= 3) {
+        rawNodes = groqResult.nodes;
+      } else {
+        const ai = getAI();
+        if (ai) {
+          try {
+            const response = await ai.models.generateContent({
+              model: "gemini-3.8-flash",
+              contents: prompt,
+              config: { responseMimeType: "application/json" },
+            });
+            if (response.text) {
+              const parsed = JSON.parse(response.text);
+              if (Array.isArray(parsed.nodes) && parsed.nodes.length >= 3) {
+                rawNodes = parsed.nodes;
+              }
+            }
+          } catch (e) {
+            console.warn("Gemini mindmap generation fallback:", e);
+          }
+        }
+      }
+
+      if (rawNodes.length === 0) {
+        rawNodes = [
+          {
+            id: "node_1",
+            label: `${topic} Foundations`,
+            subject,
+            level: 1,
+            status: "mastered",
+            prerequisites: [],
+            description: `Core prerequisite principles required before manipulating expressions in ${topic}.`,
+            keyTakeaway: `Always establish variable scope, types, and domain restrictions first.`,
+            exampleOrFormula: `x = initial_state; verify(valid_bounds(x))`,
+            commonMistake: `Assuming variables maintain state across different scopes.`,
+            whyItMatters: `Without foundational grounding, arithmetic transformations yield undefined states.`,
+          },
+          {
+            id: "node_2",
+            label: `Core Mechanism: ${topic}`,
+            subject,
+            level: 1,
+            status: "mastered",
+            prerequisites: ["node_1"],
+            description: `The standard operational rules governing computation and evaluation in ${topic}.`,
+            keyTakeaway: `Evaluate step-by-step strictly according to operator precedence and associativity.`,
+            exampleOrFormula: `result = evaluate(left_operand) OP evaluate(right_operand)`,
+            commonMistake: `Evaluating left-to-right naively without respecting operator precedence.`,
+            whyItMatters: `Forms the computational engine of all algorithms in this topic.`,
+          },
+          {
+            id: "node_3",
+            label: `Active Trap: ${misconception}`,
+            subject,
+            level: 2,
+            status: "vulnerable",
+            misconceptionRisk: misconception,
+            prerequisites: ["node_2"],
+            description: `Primary cognitive barrier: students tend to confuse direct substitution with operation semantics in ${topic}.`,
+            keyTakeaway: `Distinguish in-place modification from returned evaluation values.`,
+            exampleOrFormula: `// Example: Check operator precedence and order of updates carefully`,
+            commonMistake: misconception,
+            whyItMatters: `Resolving this barrier unlocks accurate multi-step problem solving.`,
+          },
+          {
+            id: "node_4",
+            label: `Boundary & Edge Conditions`,
+            subject,
+            level: 2,
+            status: "unlocked",
+            prerequisites: ["node_2"],
+            description: `Testing extreme values (zero, negative numbers, overflow, empty collections) to verify stability.`,
+            keyTakeaway: `An algorithm or algebraic identity is only valid if it holds at all boundaries.`,
+            exampleOrFormula: `test_cases: [0, -1, max_val]`,
+            commonMistake: `Testing only typical positive inputs.`,
+            whyItMatters: `Eliminates off-by-one errors and runtime crashes in production STEM systems.`,
+          },
+          {
+            id: "node_5",
+            label: `Advanced Synthesis in ${topic}`,
+            subject,
+            level: 3,
+            status: "unlocked",
+            prerequisites: ["node_3", "node_4"],
+            description: `Composing complex transformations and theorems built on clean ${topic} mastery.`,
+            keyTakeaway: `Complex systems are simply chains of rigorously verified elementary steps.`,
+            exampleOrFormula: `f(g(x)) where domain(f) includes codomain(g)`,
+            commonMistake: `Attempting optimization before correctness is mathematically proven.`,
+            whyItMatters: `Enables tackling real-world multi-dimensional STEM challenges.`,
+          },
+        ];
+      }
+
+      // Assign coordinates nicely across the canvas (width ~ 720, height ~ 480)
+      const levelGroups: Record<number, any[]> = { 1: [], 2: [], 3: [] };
+      rawNodes.forEach((node) => {
+        const lvl = node.level === 3 ? 3 : node.level === 2 ? 2 : 1;
+        levelGroups[lvl].push(node);
+      });
+
+      const xForLevel = (lvl: number) => {
+        if (lvl === 1) return 120;
+        if (lvl === 2) return 360;
+        return 600;
+      };
+
+      const finalNodes = rawNodes.map((node) => {
+        const lvl = node.level === 3 ? 3 : node.level === 2 ? 2 : 1;
+        const group = levelGroups[lvl];
+        const idx = group.findIndex((n) => n.id === node.id);
+        const count = group.length || 1;
+        const y = Math.round(80 + (320 / (count + 1)) * (idx + 1));
+        const x = xForLevel(lvl);
+
+        return {
+          id: String(node.id || `node_${Date.now()}_${idx}`),
+          label: String(node.label || topic),
+          subject: String(node.subject || subject),
+          level: lvl,
+          x,
+          y,
+          status: (node.status === "mastered" || node.status === "vulnerable" || node.status === "unlocked")
+            ? node.status
+            : (lvl === 1 ? "mastered" : lvl === 2 ? "vulnerable" : "unlocked"),
+          misconceptionRisk: node.misconceptionRisk ? String(node.misconceptionRisk) : undefined,
+          prerequisites: Array.isArray(node.prerequisites) ? node.prerequisites.map(String) : [],
+          description: String(node.description || `Concept in ${topic}`),
+          keyTakeaway: node.keyTakeaway ? String(node.keyTakeaway) : undefined,
+          exampleOrFormula: node.exampleOrFormula ? String(node.exampleOrFormula) : undefined,
+          commonMistake: node.commonMistake ? String(node.commonMistake) : undefined,
+          whyItMatters: node.whyItMatters ? String(node.whyItMatters) : undefined,
+        };
+      });
+
+      res.json({ nodes: finalNodes });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Vite middleware for development vs static build in production
   const isProduction =
     process.env.NODE_ENV === "production" || process.env.RENDER === "true";
