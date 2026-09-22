@@ -50,13 +50,15 @@ export default function App() {
     topMisconceptions: [], studentRoster: []
   });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(() => sessionStorage.getItem('cognifix_access_token'));
   const isAuthenticated = !user.isGuest;
 
   useEffect(() => {
-    const accessToken = new URLSearchParams(window.location.hash.slice(1)).get('access_token');
-    if (!accessToken) return;
+    const callbackToken = new URLSearchParams(window.location.hash.slice(1)).get('access_token');
+    const token = callbackToken || sessionStorage.getItem('cognifix_access_token');
+    if (!token) return;
     try {
-      const encodedPayload = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const encodedPayload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
       const paddedPayload = encodedPayload.padEnd(encodedPayload.length + (4 - encodedPayload.length % 4) % 4, '=');
       const payload = JSON.parse(decodeURIComponent(escape(atob(paddedPayload))));
       const metadata = payload.user_metadata || {};
@@ -71,9 +73,13 @@ export default function App() {
         tier: 'Self-paced learner',
         masteryScore: 0
       });
+      sessionStorage.setItem('cognifix_access_token', token);
+      setAccessToken(token);
       window.history.replaceState(null, '', window.location.pathname);
       setCurrentView('dashboard');
     } catch {
+      sessionStorage.removeItem('cognifix_access_token');
+      setAccessToken(null);
       window.history.replaceState(null, '', window.location.pathname);
     }
   }, []);
@@ -148,7 +154,7 @@ export default function App() {
             user={user}
             logs={logs}
             onNavigate={(view) => setCurrentView(view)}
-            onSelectPracticeTopic={handleSelectPracticeTopic}
+            accessToken={accessToken}
           />
         )}
 

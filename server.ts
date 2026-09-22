@@ -17,11 +17,79 @@ function getAI(): GoogleGenAI | null {
   return aiClient;
 }
 
+type GroqAgent = "diagnoser" | "generator" | "explainer" | "roadmap" | "document";
+const groqKeyNames: Record<GroqAgent, string> = {
+  diagnoser: "GROQ_DIAGNOSER_API_KEY", generator: "GROQ_GENERATOR_API_KEY", explainer: "GROQ_EXPLAINER_API_KEY", roadmap: "GROQ_ROADMAP_API_KEY", document: "GROQ_DOCUMENT_API_KEY"
+};
+
+const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
+const allowedUploadTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+]);
+
+async function askGroq(agent: GroqAgent, prompt: string): Promise<any | null> {
+  const key = process.env[groqKeyNames[agent]] || process.env.GROQ_API_KEY;
+  if (!key || key.startsWith("MY_")) return null;
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile", response_format: { type: "json_object" }, messages: [{ role: "system", content: "Return only valid JSON. Be precise, supportive, and concise." }, { role: "user", content: prompt }] })
+    });
+    if (!response.ok) throw new Error(`Groq returned ${response.status}`);
+    const payload = await response.json() as any;
+    return JSON.parse(payload.choices?.[0]?.message?.content || "null");
+  } catch (error) { console.warn(`Groq ${agent} fallback:`, error); return null; }
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.use(express.json());
+
+  app.post("/api/uploads/wrong-answer", express.raw({ type: "*/*", limit: "30mb" }), async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+    const mimeType = (req.header("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+    if (!supabaseUrl || !serviceKey || !anonKey || !token) return res.status(401).json({ error: "Please sign in with Google before uploading." });
+    if (!allowedUploadTypes.has(mimeType)) return res.status(415).json({ error: "Use a PDF, Word document, JPG, PNG, or WEBP image." });
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "Choose a file to upload." });
+    if (req.body.length > MAX_UPLOAD_BYTES) return res.status(413).json({ error: "Files must be 30 MB or smaller." });
+    let storagePath: string | null = null;
+    try {
+      const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), { headers: { apikey: anonKey, Authorization: `Bearer ${token}` } });
+      if (!userResponse.ok) return res.status(401).json({ error: "Your session has expired. Please sign in with Google again." });
+      const authUser = await userResponse.json() as { id: string };
+      let rawName = req.header("x-file-name") || "wrong-answer";
+      try { rawName = decodeURIComponent(rawName); } catch { rawName = "wrong-answer"; }
+      const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "wrong-answer";
+      storagePath = `${authUser.id}/${Date.now()}-${safeName}`;
+      const storageResponse = await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "POST", headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": mimeType, "x-upsert": "false" }, body: new Uint8Array(req.body) });
+      if (!storageResponse.ok) throw new Error(`Storage returned ${storageResponse.status}`);
+      const recordResponse = await fetch(new URL("/rest/v1/wrong_answer_uploads", supabaseUrl), { method: "POST", headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": "application/json", Prefer: "return=representation" }, body: JSON.stringify({ user_id: authUser.id, storage_path: storagePath, original_name: rawName, mime_type: mimeType, size_bytes: req.body.length }) });
+      if (!recordResponse.ok) throw new Error(`Database returned ${recordResponse.status}`);
+      res.status(201).json({ path: storagePath, message: "Upload saved." });
+    } catch (error) {
+      if (storagePath) {
+        await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "DELETE", headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }).catch(() => undefined);
+      }
+      console.error("Wrong answer upload failed:", error);
+      res.status(502).json({ error: "Upload could not be saved. Run the Supabase SQL setup and try again." });
+    }
+  });
+
+  app.use((error: { type?: string; status?: number }, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (error.type === "entity.too.large" || error.status === 413) return res.status(413).json({ error: "Files must be 30 MB or smaller." });
+    next(error);
+  });
 
   // Health check endpoint
   app.get("/api/health", (_req, res) => {
@@ -74,6 +142,9 @@ async function startServer() {
           agentTrace: "Verifier Agent confirmed valid axiomatic deduction."
         });
       }
+
+      const groqDiagnosis = await askGroq("diagnoser", `Identify the STEM misconception in this wrong answer. Return {misconception,errorTag,confidence,rootCause,cognitiveTrap,suggestedRemediationDomain}. Topic: ${topic}. Question: ${questionStem}. Math: ${mathNotation || "none"}. Answer: ${selectedOptionText}. Student reasoning: ${studentReasoning || "none"}.`);
+      if (groqDiagnosis) return res.json({ ...groqDiagnosis, source: "groq-diagnoser" });
 
       const ai = getAI();
       if (ai) {
@@ -145,6 +216,8 @@ Output valid JSON matching this schema:
   app.post("/api/agents/generate-remediation", async (req, res) => {
     try {
       const { misconception, topic, difficulty = "Medium" } = req.body;
+      const groqProblem = await askGroq("generator", `Create one ${difficulty} isomorphic STEM remediation multiple-choice problem for misconception "${misconception}" in ${topic}. Return {stem,mathNotation,theoremDomain,options,socraticHint,verificationCertificate}. Include four options A-D with exactly one isCorrect true and concise rationales.`);
+      if (groqProblem) return res.json({ problem: groqProblem, source: "groq-generator" });
       const ai = getAI();
 
       if (ai) {
@@ -251,6 +324,8 @@ Return valid JSON with:
   app.post("/api/agents/explain", async (req, res) => {
     try {
       const { misconception, questionStem, studentReasoning } = req.body;
+      const groqExplanation = await askGroq("explainer", `Explain this misconception supportively for a student. Return {coreEpiphany,intuitiveAnalogy,socraticQuestions,axiomaticRule}. Misconception: ${misconception}. Question: ${questionStem}. Student reasoning: ${studentReasoning || "none"}.`);
+      if (groqExplanation) return res.json(groqExplanation);
       const ai = getAI();
 
       if (ai) {
@@ -371,6 +446,8 @@ Format JSON output with:
   app.post("/api/agents/roadmap", async (req, res) => {
     try {
       const { userTraps = [], subject = "Mathematics" } = req.body;
+      const groqRoadmap = await askGroq("roadmap", `Create a concise personalized STEM learning roadmap. Return {roadmapTitle,estimatedTotalHours,steps}. Subject: ${subject}. Misconceptions: ${JSON.stringify(userTraps)}. Each step needs title, topic, description, completed false, timeEstimate, resources.`);
+      if (groqRoadmap) return res.json(groqRoadmap);
       const ai = getAI();
 
       if (ai) {
