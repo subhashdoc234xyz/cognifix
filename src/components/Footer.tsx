@@ -39,12 +39,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             Diagnostic Sandbox
           </button>
           <button 
-            onClick={() => onNavigate('teacher-portal')} 
-            className="hover:text-[#006096] transition-colors"
-          >
-            Institutional Portal
-          </button>
-          <button 
             onClick={() => onNavigate('roadmap')} 
             className="hover:text-[#006096] transition-colors"
           >
