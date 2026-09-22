@@ -26,6 +26,18 @@ import { RoadmapView } from './components/RoadmapView';
 import { TeacherPortalView } from './components/TeacherPortalView';
 import { AuthModal } from './components/AuthModal';
 
+const uploadDiagnosticStorageKey = (userId: string) => `cognifix_upload_diagnostic_${userId}`;
+
+function loadSavedUploadDiagnostic(userId: string): QuizQuestion | null {
+  if (!userId || userId === initialUserProfile.id) return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(uploadDiagnosticStorageKey(userId)) || 'null') as QuizQuestion | null;
+    return saved?.stem && Array.isArray(saved.options) && saved.options.length === 4 ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('landing');
   const [user, setUser] = useState<UserProfile>(() => {
@@ -53,6 +65,12 @@ export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(() => sessionStorage.getItem('cognifix_access_token'));
   const isAuthenticated = !user.isGuest;
 
+  // Keep an uploaded-work diagnostic tied to the student after a new sign-in.
+  useEffect(() => {
+    const savedQuestion = isAuthenticated ? loadSavedUploadDiagnostic(user.id) : null;
+    if (savedQuestion) setActiveQuestion(savedQuestion);
+  }, [isAuthenticated, user.id]);
+
   useEffect(() => {
     const callbackToken = new URLSearchParams(window.location.hash.slice(1)).get('access_token');
     const token = callbackToken || sessionStorage.getItem('cognifix_access_token');
@@ -73,6 +91,8 @@ export default function App() {
         tier: 'Self-paced learner',
         masteryScore: 0
       });
+      const savedQuestion = loadSavedUploadDiagnostic(payload.sub);
+      if (savedQuestion) setActiveQuestion(savedQuestion);
       sessionStorage.setItem('cognifix_access_token', token);
       setAccessToken(token);
       window.history.replaceState(null, '', window.location.pathname);
@@ -111,7 +131,9 @@ export default function App() {
     });
     const result = await response.json();
     if (!response.ok || !result.question) throw new Error(result.error || 'Could not generate questions from this upload.');
-    setActiveQuestion(result.question as QuizQuestion);
+    const generatedQuestion = result.question as QuizQuestion;
+    localStorage.setItem(uploadDiagnosticStorageKey(user.id), JSON.stringify(generatedQuestion));
+    setActiveQuestion(generatedQuestion);
     setCurrentView('practice-and-quiz');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -143,6 +165,10 @@ export default function App() {
       setIsAuthOpen(true);
       return;
     }
+    if (view === 'practice-and-quiz') {
+      const savedQuestion = loadSavedUploadDiagnostic(user.id);
+      if (savedQuestion) setActiveQuestion(savedQuestion);
+    }
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -167,7 +193,7 @@ export default function App() {
           <DashboardView
             user={user}
             logs={logs}
-            onNavigate={(view) => setCurrentView(view)}
+            onNavigate={handleNavigate}
             accessToken={accessToken}
             onDiagnoseUpload={handleDiagnoseUpload}
           />
@@ -176,7 +202,7 @@ export default function App() {
         {currentView === 'practice-and-quiz' && (
           <PracticeQuizView
             question={activeQuestion}
-            onNavigate={(view) => setCurrentView(view)}
+            onNavigate={handleNavigate}
             onQuestionCompleted={handleQuestionCompleted}
           />
         )}
@@ -184,14 +210,14 @@ export default function App() {
         {currentView === 'flashcards' && (
           <FlashcardsView
             flashcards={flashcards}
-            onNavigate={(view) => setCurrentView(view)}
+            onNavigate={handleNavigate}
           />
         )}
 
         {currentView === 'mind-map' && (
           <MindMapView
             nodes={mindMapNodes}
-            onNavigate={(view) => setCurrentView(view)}
+            onNavigate={handleNavigate}
             onSelectNodeForPractice={(node) => {
               if (node.subject.toLowerCase().includes('calculus')) {
                 setActiveQuestion(sampleCalculusQuestion);
@@ -206,14 +232,14 @@ export default function App() {
         {currentView === 'roadmap' && (
           <RoadmapView
             steps={roadmapSteps}
-            onNavigate={(view) => setCurrentView(view)}
+            onNavigate={handleNavigate}
           />
         )}
 
         {currentView === 'teacher-portal' && (
           <TeacherPortalView
             stats={teacherStats}
-            onNavigate={(view) => setCurrentView(view)}
+            onNavigate={handleNavigate}
           />
         )}
       </main>
