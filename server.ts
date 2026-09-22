@@ -39,7 +39,7 @@ async function askGroq(agent: GroqAgent, prompt: string): Promise<any | null> {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile", response_format: { type: "json_object" }, messages: [{ role: "system", content: "Return only valid JSON. Be precise, supportive, and concise." }, { role: "user", content: prompt }] })
+      body: JSON.stringify({ model: process.env.GROQ_MODEL || "openai/gpt-oss-120b", response_format: { type: "json_object" }, messages: [{ role: "system", content: "Return only valid JSON. Be precise, supportive, and concise." }, { role: "user", content: prompt }] })
     });
     if (!response.ok) throw new Error(`Groq returned ${response.status}`);
     const payload = await response.json() as any;
