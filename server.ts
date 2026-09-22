@@ -55,16 +55,14 @@ async function startServer() {
 
   app.post("/api/uploads/wrong-answer", express.raw({ type: "*/*", limit: "30mb" }), async (req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL;
-    // Supports both legacy service-role JWTs and Supabase's current sb_secret keys.
-    // Secret keys are API keys, not JWTs, and must never be put in Authorization.
-    const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     const anonKey = process.env.SUPABASE_ANON_KEY;
     const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
     const mimeType = (req.header("content-type") || "").split(";", 1)[0].trim().toLowerCase();
-    if (!supabaseUrl || !serviceKey || !anonKey || !token) return res.status(401).json({ error: "Please sign in with Google before uploading." });
+    if (!supabaseUrl || !anonKey || !token) return res.status(401).json({ error: "Please sign in with Google before uploading." });
     if (!allowedUploadTypes.has(mimeType)) return res.status(415).json({ error: "Use a PDF, Word document, JPG, PNG, or WEBP image." });
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "Choose a file to upload." });
     if (req.body.length > MAX_UPLOAD_BYTES) return res.status(413).json({ error: "Files must be 30 MB or smaller." });
+    const userHeaders = { apikey: anonKey, Authorization: `Bearer ${token}` };
     let storagePath: string | null = null;
     try {
       const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), { headers: { apikey: anonKey, Authorization: `Bearer ${token}` } });
@@ -74,14 +72,16 @@ async function startServer() {
       try { rawName = decodeURIComponent(rawName); } catch { rawName = "wrong-answer"; }
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "wrong-answer";
       storagePath = `${authUser.id}/${Date.now()}-${safeName}`;
-      const storageResponse = await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "POST", headers: { apikey: serviceKey, "Content-Type": mimeType, "x-upsert": "false" }, body: new Uint8Array(req.body) });
+      // Use the student's authenticated token. Storage and database RLS policies
+      // limit this request to the student's own UUID folder and metadata rows.
+      const storageResponse = await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "POST", headers: { ...userHeaders, "Content-Type": mimeType, "x-upsert": "false" }, body: new Uint8Array(req.body) });
       if (!storageResponse.ok) throw new Error(`Storage returned ${storageResponse.status}`);
-      const recordResponse = await fetch(new URL("/rest/v1/wrong_answer_uploads", supabaseUrl), { method: "POST", headers: { apikey: serviceKey, "Content-Type": "application/json", Prefer: "return=representation" }, body: JSON.stringify({ user_id: authUser.id, storage_path: storagePath, original_name: rawName, mime_type: mimeType, size_bytes: req.body.length }) });
+      const recordResponse = await fetch(new URL("/rest/v1/wrong_answer_uploads", supabaseUrl), { method: "POST", headers: { ...userHeaders, "Content-Type": "application/json", Prefer: "return=representation" }, body: JSON.stringify({ user_id: authUser.id, storage_path: storagePath, original_name: rawName, mime_type: mimeType, size_bytes: req.body.length }) });
       if (!recordResponse.ok) throw new Error(`Database returned ${recordResponse.status}`);
       res.status(201).json({ path: storagePath, message: "Upload saved." });
     } catch (error) {
       if (storagePath) {
-        await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "DELETE", headers: { apikey: serviceKey } }).catch(() => undefined);
+        await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "DELETE", headers: userHeaders }).catch(() => undefined);
       }
       console.error("Wrong answer upload failed:", error);
       res.status(502).json({ error: "Upload could not be saved. Run the Supabase SQL setup and try again." });
@@ -98,6 +98,7 @@ async function startServer() {
     res.json({
       status: "ok",
       aiAvailable: Boolean(getAI()),
+      uploadMode: "user-token-rls",
       timestamp: new Date().toISOString()
     });
   });
