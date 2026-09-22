@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ViewMode, UserProfile, DiagnosticLog, QuizQuestion } from './types';
+import { ViewMode, UserProfile, DiagnosticLog, FlashcardItem, MindMapNode, QuizQuestion, UploadedLearningWorkspace } from './types';
 import { 
   initialUserProfile, 
   sampleQuizQuestion, 
@@ -27,6 +27,7 @@ import { TeacherPortalView } from './components/TeacherPortalView';
 import { AuthModal } from './components/AuthModal';
 
 const uploadDiagnosticStorageKey = (userId: string) => `cognifix_upload_diagnostic_${userId}`;
+const uploadedWorkspacesStorageKey = (userId: string) => `cognifix_uploaded_workspaces_${userId}`;
 
 function loadSavedUploadDiagnostic(userId: string): QuizQuestion | null {
   if (!userId || userId === initialUserProfile.id) return null;
@@ -36,6 +37,42 @@ function loadSavedUploadDiagnostic(userId: string): QuizQuestion | null {
   } catch {
     return null;
   }
+}
+
+function loadUploadedWorkspaces(userId: string): UploadedLearningWorkspace[] {
+  if (!userId || userId === initialUserProfile.id) return [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(uploadedWorkspacesStorageKey(userId)) || '[]');
+    return Array.isArray(saved) ? saved.filter((item): item is UploadedLearningWorkspace => item?.question?.stem && item?.uploadPath) : [];
+  } catch {
+    return [];
+  }
+}
+
+function learningAssetsFor(question: QuizQuestion): { flashcards: FlashcardItem[]; nodes: MindMapNode[] } {
+  const misconception = question.detectedMisconceptions[0];
+  return {
+    flashcards: [{
+      id: `upload-card-${question.id}`,
+      subject: question.subject,
+      topic: question.topic,
+      frontQuestion: question.stem,
+      backIntuition: question.options.find(option => option.isCorrect)?.rationale || question.socraticHint.anchor,
+      mathematicalProof: question.mathNotation || question.theoremDomain || 'Review the rule used in this question.',
+      trapWarning: misconception?.description || 'Check the original rule before choosing an answer.',
+      status: 'due', decayLevel: 'Critical', nextReview: 'Today'
+    }],
+    nodes: [{
+      id: `upload-node-${question.id}`,
+      label: question.topic,
+      subject: question.subject,
+      level: 1, x: 360, y: 220,
+      status: 'vulnerable',
+      misconceptionRisk: misconception?.name || 'Uploaded-work review',
+      prerequisites: [],
+      description: question.mathObjective || question.theoremDomain || 'Concept extracted from your uploaded work.'
+    }]
+  };
 }
 
 export default function App() {
@@ -53,9 +90,11 @@ export default function App() {
   });
 
   const [activeQuestion, setActiveQuestion] = useState<QuizQuestion>(sampleQuizQuestion);
+  const [uploadedWorkspaces, setUploadedWorkspaces] = useState<UploadedLearningWorkspace[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [logs, setLogs] = useState<DiagnosticLog[]>(initialDiagnosticLogs);
-  const [flashcards] = useState<typeof initialFlashcards>([]);
-  const [mindMapNodes] = useState<typeof initialMindMapNodes>([]);
+  const [flashcards, setFlashcards] = useState<typeof initialFlashcards>([]);
+  const [mindMapNodes, setMindMapNodes] = useState<typeof initialMindMapNodes>([]);
   const [roadmapSteps] = useState<typeof initialRoadmapSteps>([]);
   const [teacherStats] = useState<typeof initialTeacherStats>({
     totalStudents: 0, avgMastery: 0, activeTrapsFlagged: 0, remediationSuccessRate: 0,
@@ -70,6 +109,15 @@ export default function App() {
     const savedQuestion = isAuthenticated ? loadSavedUploadDiagnostic(user.id) : null;
     if (savedQuestion) setActiveQuestion(savedQuestion);
   }, [isAuthenticated, user.id]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    setUploadedWorkspaces(loadUploadedWorkspaces(user.id));
+  }, [isAuthenticated, user.id]);
+
+  useEffect(() => {
+    if (!user.isGuest) localStorage.setItem(uploadedWorkspacesStorageKey(user.id), JSON.stringify(uploadedWorkspaces));
+  }, [uploadedWorkspaces, user.id, user.isGuest]);
 
   useEffect(() => {
     const callbackToken = new URLSearchParams(window.location.hash.slice(1)).get('access_token');
@@ -122,6 +170,16 @@ export default function App() {
     setCurrentView('practice-and-quiz');
   };
 
+  const activateWorkspace = (workspace: UploadedLearningWorkspace, view: ViewMode = 'practice-and-quiz') => {
+    const assets = learningAssetsFor(workspace.question);
+    setActiveWorkspaceId(workspace.id);
+    setActiveQuestion(workspace.question);
+    setFlashcards(assets.flashcards);
+    setMindMapNodes(assets.nodes);
+    setCurrentView(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleDiagnoseUpload = async (upload: { path: string; name: string }) => {
     if (!accessToken) throw new Error('Please sign in again before diagnosing your upload.');
     const response = await fetch('/api/uploads/wrong-answer/diagnose', {
@@ -133,14 +191,25 @@ export default function App() {
     if (!response.ok || !result.question) throw new Error(result.error || 'Could not generate questions from this upload.');
     const generatedQuestion = result.question as QuizQuestion;
     localStorage.setItem(uploadDiagnosticStorageKey(user.id), JSON.stringify(generatedQuestion));
-    setActiveQuestion(generatedQuestion);
-    setCurrentView('practice-and-quiz');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const now = new Date().toISOString();
+    const workspace: UploadedLearningWorkspace = {
+      id: upload.path, uploadPath: upload.path, uploadName: upload.name,
+      title: `${generatedQuestion.subject} · ${generatedQuestion.topic}`,
+      question: generatedQuestion, createdAt: now, updatedAt: now
+    };
+    setUploadedWorkspaces(previous => [workspace, ...previous.filter(item => item.id !== workspace.id)]);
+    activateWorkspace(workspace);
   };
 
   const handlePracticeQuestionChanged = (nextQuestion: QuizQuestion) => {
     if (!user.isGuest) localStorage.setItem(uploadDiagnosticStorageKey(user.id), JSON.stringify(nextQuestion));
     setActiveQuestion(nextQuestion);
+    if (activeWorkspaceId) {
+      setUploadedWorkspaces(previous => previous.map(workspace => workspace.id === activeWorkspaceId ? { ...workspace, question: nextQuestion, updatedAt: new Date().toISOString() } : workspace));
+      const assets = learningAssetsFor(nextQuestion);
+      setFlashcards(assets.flashcards);
+      setMindMapNodes(assets.nodes);
+    }
   };
 
   const handleQuestionCompleted = (isCorrect: boolean, errorTag?: string) => {
@@ -201,6 +270,8 @@ export default function App() {
             onNavigate={handleNavigate}
             accessToken={accessToken}
             onDiagnoseUpload={handleDiagnoseUpload}
+            workspaces={uploadedWorkspaces}
+            onOpenWorkspace={activateWorkspace}
           />
         )}
 

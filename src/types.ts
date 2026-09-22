@@ -35,6 +35,9 @@ export interface QuizQuestion {
   code: string;
   questionNumber: number;
   totalQuestions: number;
+  sourceQuestion?: string;
+  uploadedAnswer?: string;
+  diagnosisSummary?: string;
   stem: string;
   mathNotation?: string;
   mathObjective?: string;
@@ -57,6 +60,16 @@ export interface QuizQuestion {
     title: string;
     relationship: string;
   };
+}
+
+export interface UploadedLearningWorkspace {
+  id: string;
+  uploadName: string;
+  uploadPath: string;
+  title: string;
+  question: QuizQuestion;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DiagnosticLog {
