@@ -604,6 +604,7 @@ export default function App() {
         {currentView === "mind-map" && (
           <MindMapView
             nodes={mindMapNodes}
+            question={activeQuestion}
             onNavigate={handleNavigate}
             onUpdateNodeStatus={(nodeId, status) => {
               setMindMapNodes((prev) =>
