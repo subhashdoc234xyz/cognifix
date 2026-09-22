@@ -1,11 +1,10 @@
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -20,7 +19,7 @@ function getAI(): GoogleGenAI | null {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.use(express.json());
 
@@ -419,7 +418,8 @@ Return JSON matching:
   });
 
   // Vite middleware for development vs static build in production
-  if (process.env.NODE_ENV !== "production") {
+  const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"
