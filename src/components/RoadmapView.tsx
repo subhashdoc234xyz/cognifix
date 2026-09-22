@@ -26,6 +26,10 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({ steps: initialSteps, o
   const [isSearching, setIsSearching] = useState(false);
   const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
 
+  if (steps.length === 0) {
+    return <div className="min-h-screen bg-[#f8f9ff] px-4 py-16 sm:px-6"><div className="mx-auto max-w-xl rounded-2xl border border-[#bfc7d2]/40 bg-white p-8 text-center shadow-xs"><Map className="mx-auto h-9 w-9 text-[#006096]" /><h1 className="mt-4 text-xl font-bold text-[#0b1c30]">Your learning roadmap starts here</h1><p className="mt-2 text-sm leading-6 text-[#3f4851]">Complete a first practice session, then use your diagnostics to create a focused plan.</p><button onClick={() => onNavigate('practice-and-quiz')} className="mt-6 rounded-xl bg-[#006096] px-5 py-3 text-xs font-bold text-white">Start practice</button></div></div>;
+  }
+
   const toggleStep = (id: string) => {
     setSteps(prev => prev.map(s => s.id === id ? { ...s, completed: !s.completed } : s));
   };

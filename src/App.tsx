@@ -30,16 +30,27 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('landing');
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('cognifix_user');
-    return saved ? JSON.parse(saved) : initialUserProfile;
+    if (!saved) return initialUserProfile;
+    try {
+      const parsed = JSON.parse(saved) as UserProfile;
+      // Remove the legacy seeded profile from browsers that used the old demo build.
+      return parsed.id === 'usr_cogni_4092' || parsed.email === 'learner@cognifix.edu' ? initialUserProfile : parsed;
+    } catch {
+      return initialUserProfile;
+    }
   });
 
   const [activeQuestion, setActiveQuestion] = useState<QuizQuestion>(sampleQuizQuestion);
   const [logs, setLogs] = useState<DiagnosticLog[]>(initialDiagnosticLogs);
-  const [flashcards] = useState(initialFlashcards);
-  const [mindMapNodes] = useState(initialMindMapNodes);
-  const [roadmapSteps] = useState(initialRoadmapSteps);
-  const [teacherStats] = useState(initialTeacherStats);
+  const [flashcards] = useState<typeof initialFlashcards>([]);
+  const [mindMapNodes] = useState<typeof initialMindMapNodes>([]);
+  const [roadmapSteps] = useState<typeof initialRoadmapSteps>([]);
+  const [teacherStats] = useState<typeof initialTeacherStats>({
+    totalStudents: 0, avgMastery: 0, activeTrapsFlagged: 0, remediationSuccessRate: 0,
+    topMisconceptions: [], studentRoster: []
+  });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const isAuthenticated = !user.isGuest;
 
   useEffect(() => {
     localStorage.setItem('cognifix_user', JSON.stringify(user));
@@ -47,6 +58,7 @@ export default function App() {
 
   const handleUpdateUser = (updated: UserProfile) => {
     setUser(updated);
+    setCurrentView('dashboard');
   };
 
   const handleSelectPracticeTopic = (topic: string) => {
@@ -80,15 +92,21 @@ export default function App() {
     }
   };
 
+  const handleNavigate = (view: ViewMode) => {
+    if (view !== 'landing' && !isAuthenticated) {
+      setIsAuthOpen(true);
+      return;
+    }
+    setCurrentView(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8f9ff] text-[#0b1c30]">
+    <div className="min-h-screen flex flex-col overflow-x-hidden bg-[#f8f9ff] text-[#0b1c30]">
       {/* Sticky App Header */}
       <Header
         currentView={currentView}
-        onNavigate={(view) => {
-          setCurrentView(view);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onNavigate={handleNavigate}
         user={user}
         onOpenAuth={() => setIsAuthOpen(true)}
       />
@@ -96,7 +114,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1">
         {currentView === 'landing' && (
-          <LandingView onNavigate={(view) => setCurrentView(view)} />
+          <LandingView onOpenAuth={() => setIsAuthOpen(true)} />
         )}
 
         {currentView === 'dashboard' && (
@@ -154,7 +172,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <Footer onNavigate={(view) => setCurrentView(view)} />
+      <Footer onNavigate={handleNavigate} />
 
       {/* Auth / Profile Modal */}
       <AuthModal

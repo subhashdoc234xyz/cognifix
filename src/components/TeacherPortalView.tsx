@@ -23,7 +23,7 @@ export const TeacherPortalView: React.FC<TeacherPortalViewProps> = ({ stats, onN
   const [roster, setRoster] = useState(stats.studentRoster);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [selectedMisconception, setSelectedMisconception] = useState(stats.topMisconceptions[0].name);
+  const [selectedMisconception, setSelectedMisconception] = useState(stats.topMisconceptions[0]?.name ?? '');
   const [assignmentSuccessMsg, setAssignmentSuccessMsg] = useState<string | null>(null);
 
   const filteredRoster = roster.filter(s => 
@@ -31,6 +31,10 @@ export const TeacherPortalView: React.FC<TeacherPortalViewProps> = ({ stats, onN
     s.primaryTrap.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (stats.totalStudents === 0) {
+    return <div className="min-h-screen bg-[#f8f9ff] px-4 py-16 sm:px-6"><div className="mx-auto max-w-xl rounded-2xl border border-[#bfc7d2]/40 bg-white p-8 text-center shadow-xs"><GraduationCap className="mx-auto h-9 w-9 text-[#006096]" /><h1 className="mt-4 text-xl font-bold text-[#0b1c30]">Your class workspace is ready</h1><p className="mt-2 text-sm leading-6 text-[#3f4851]">There are no learners or diagnostic results in this workspace yet.</p></div></div>;
+  }
 
   const handleDispatchAssignment = (e: React.FormEvent) => {
     e.preventDefault();

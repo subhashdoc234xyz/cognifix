@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { Sparkles, Eye, EyeOff, Check, X, Shield, Lock, Mail, ArrowRight, UserCheck } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, X, Lock, Mail } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -73,22 +73,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setTimeout(() => {
       onClose();
     }, 600);
-  };
-
-  const handleGuestAccess = () => {
-    const guestUser: UserProfile = {
-      id: 'guest_' + Math.floor(Math.random() * 10000),
-      name: 'Guest Scholar',
-      email: 'guest@cognifix.local',
-      isGuest: true,
-      role: 'student',
-      streak: 1,
-      xp: 50,
-      tier: 'Tier I: Guest Explorer',
-      masteryScore: 65
-    };
-    onUpdateUser(guestUser);
-    onClose();
   };
 
   return (
@@ -173,7 +157,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {mode === 'signin' && (
                 <button
                   type="button"
-                  onClick={() => setNotification('Password reset link simulated to your email.')}
+                  onClick={() => setNotification('Password recovery will be available when your identity provider is connected.')}
                   className="text-[11px] font-medium text-[#006096] hover:underline"
                 >
                   Forgot?
@@ -274,21 +258,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {mode === 'signin' ? 'Sign In to Workspace' : 'Create Cognitive Account'}
           </button>
 
-          {/* Divider */}
-          <div className="relative flex items-center justify-center my-3">
-            <div className="border-t border-[#bfc7d2]/40 w-full" />
-            <span className="bg-white px-2 text-[10px] uppercase font-bold text-[#707882] absolute">or</span>
-          </div>
-
-          {/* Guest Access CTA */}
-          <button
-            type="button"
-            onClick={handleGuestAccess}
-            className="w-full py-2.5 rounded-xl bg-[#eff4ff] border border-[#bfc7d2]/50 text-[#006096] font-semibold text-xs hover:bg-[#e5eeff] transition-all flex items-center justify-center gap-2"
-          >
-            <UserCheck className="w-4 h-4" />
-            <span>Continue as Guest (Instant Access)</span>
-          </button>
         </form>
 
         {/* Footer info */}

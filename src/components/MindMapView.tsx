@@ -15,6 +15,10 @@ export const MindMapView: React.FC<MindMapViewProps> = ({
 }) => {
   const [selectedNode, setSelectedNode] = useState<MindMapNode | null>(nodes[3] || nodes[0]);
 
+  if (!selectedNode) {
+    return <div className="min-h-screen bg-[#f8f9ff] px-4 py-16 sm:px-6"><div className="mx-auto max-w-xl rounded-2xl border border-[#bfc7d2]/40 bg-white p-8 text-center shadow-xs"><Network className="mx-auto h-9 w-9 text-purple-700" /><h1 className="mt-4 text-xl font-bold text-[#0b1c30]">Your knowledge map will grow here</h1><p className="mt-2 text-sm leading-6 text-[#3f4851]">Practice a topic to begin mapping the concepts you are learning.</p><button onClick={() => onNavigate('practice-and-quiz')} className="mt-6 rounded-xl bg-[#006096] px-5 py-3 text-xs font-bold text-white">Start practice</button></div></div>;
+  }
+
   return (
     <div className="min-h-screen bg-[#f8f9ff] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}

@@ -1,15 +1,15 @@
 import { DiagnosticLog, FlashcardItem, MindMapNode, QuizQuestion, RoadmapStep, TeacherClassStats, UserProfile } from '../types';
 
 export const initialUserProfile: UserProfile = {
-  id: 'usr_cogni_4092',
-  name: 'Marcus Keller',
-  email: 'learner@cognifix.edu',
-  isGuest: false,
+  id: '',
+  name: '',
+  email: '',
+  isGuest: true,
   role: 'student',
-  streak: 19,
-  xp: 420,
-  tier: 'Tier III: Advanced Polymath',
-  masteryScore: 78
+  streak: 0,
+  xp: 0,
+  tier: 'New learner',
+  masteryScore: 0
 };
 
 export const sampleQuizQuestion: QuizQuestion = {
@@ -148,48 +148,7 @@ export const sampleCalculusQuestion: QuizQuestion = {
   }
 };
 
-export const initialDiagnosticLogs: DiagnosticLog[] = [
-  {
-    traceId: '#LOG-8120',
-    subject: 'Calculus III',
-    topic: 'Calculus III',
-    flaggedTrap: 'Gradient vs Normal Misalignment',
-    status: 'Remediated',
-    resolvedIn: '2m 45s',
-    date: 'Today, 04:12',
-    severity: 'moderate'
-  },
-  {
-    traceId: '#LOG-8119',
-    subject: 'Linear Algebra',
-    topic: 'Linear Algebra',
-    flaggedTrap: 'Span vs Basis Equivalence Fallacy',
-    status: 'Remediated',
-    resolvedIn: '4m 10s',
-    date: 'Yesterday',
-    severity: 'low'
-  },
-  {
-    traceId: '#LOG-8114',
-    subject: 'Mechanics',
-    topic: 'Mechanics',
-    flaggedTrap: 'Normal Force Equal-Opposite Misbelief',
-    status: 'Active Queue',
-    resolvedIn: 'Pending',
-    date: 'Sep 20',
-    severity: 'critical'
-  },
-  {
-    traceId: '#LOG-8092',
-    subject: 'Differential Eq.',
-    topic: 'Differential Eq.',
-    flaggedTrap: 'Integrating Factor Multiplier Sign',
-    status: 'Remediated',
-    resolvedIn: '1m 30s',
-    date: 'Sep 18',
-    severity: 'low'
-  }
-];
+export const initialDiagnosticLogs: DiagnosticLog[] = [];
 
 export const initialFlashcards: FlashcardItem[] = [
   {
