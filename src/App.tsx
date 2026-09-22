@@ -330,6 +330,32 @@ export default function App() {
     ]);
   };
 
+  const handleDeleteUpload = async (storagePath: string) => {
+    if (accessToken) {
+      const response = await fetch("/api/uploads/wrong-answer", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ storagePath }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "Failed to delete upload.");
+      }
+    }
+    setUploadHistory((previous) =>
+      previous.filter((item) => item.path !== storagePath),
+    );
+    setUploadedWorkspaces((previous) =>
+      previous.filter((item) => item.uploadPath !== storagePath),
+    );
+    if (activeWorkspaceId === storagePath) {
+      setActiveWorkspaceId(null);
+    }
+  };
+
   const handlePracticeQuestionChanged = (nextQuestion: QuizQuestion) => {
     if (!user.isGuest)
       localStorage.setItem(
@@ -421,6 +447,7 @@ export default function App() {
             onOpenWorkspace={activateWorkspace}
             uploadHistory={uploadHistory}
             onUploadSaved={handleUploadSaved}
+            onDeleteUpload={handleDeleteUpload}
           />
         )}
 

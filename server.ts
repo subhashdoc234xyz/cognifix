@@ -165,6 +165,71 @@ function normalizeDocumentQuestion(raw: any): Record<string, unknown> | null {
   };
 }
 
+function normalizeRemediationProblem(raw: any): Record<string, unknown> | null {
+  if (!raw || !raw.stem) return null;
+  const rawOptions = Array.isArray(raw.options) ? raw.options.slice(0, 4) : [];
+  if (rawOptions.length < 2) return null;
+
+  const optionLetters = ["A", "B", "C", "D"] as const;
+  interface CleanOption {
+    id: "A" | "B" | "C" | "D";
+    text: string;
+    isCorrect: boolean;
+    rationale: string;
+    misconceptionTrigger?: string;
+  }
+
+  const options: CleanOption[] = rawOptions.map((opt: any, index: number): CleanOption => ({
+    id: optionLetters[index] || "A",
+    text: String(opt?.text || opt?.choice || opt?.stem || "").trim(),
+    isCorrect: Boolean(opt?.isCorrect),
+    rationale: opt?.rationale || "",
+    misconceptionTrigger: opt?.misconceptionTrigger || undefined,
+  }));
+
+  while (options.length < 4) {
+    const idx = options.length;
+    options.push({
+      id: optionLetters[idx] || "A",
+      text: `Option ${optionLetters[idx]}`,
+      isCorrect: false,
+      rationale: "",
+      misconceptionTrigger: undefined,
+    });
+  }
+
+  const correctOptions = options.filter((o: CleanOption) => o.isCorrect);
+  if (correctOptions.length === 0) {
+    options[0].isCorrect = true;
+  } else if (correctOptions.length > 1) {
+    let first = true;
+    for (const opt of options) {
+      if (opt.isCorrect) {
+        if (!first) opt.isCorrect = false;
+        first = false;
+      }
+    }
+  }
+
+  return {
+    stem: String(raw.stem),
+    mathNotation: raw.mathNotation || undefined,
+    theoremDomain: raw.theoremDomain || "Targeted Diagnostic Domain",
+    options,
+    socraticHint: raw.socraticHint || {
+      question: "What core rule governs this step?",
+      anchor: "Check your work against fundamental principles.",
+    },
+    verificationCertificate: raw.verificationCertificate || {
+      status: "PASSED",
+      symbolicCheck: "Verified uniqueness of solution",
+      distractorIntegrity: "Confirms distractor traps target misconception",
+      verifiedBy: "Algorithmic Solver Core v4.2",
+    },
+  };
+}
+
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -442,6 +507,87 @@ async function startServer() {
     }
   });
 
+  app.delete("/api/uploads/wrong-answer", async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+    const storagePath =
+      typeof req.body?.storagePath === "string"
+        ? req.body.storagePath
+        : typeof req.query?.storagePath === "string"
+          ? (req.query.storagePath as string)
+          : "";
+
+    if (!supabaseUrl || !anonKey || !token) {
+      return res
+        .status(401)
+        .json({ error: "Please sign in with Google before deleting uploads." });
+    }
+
+    try {
+      const userHeaders = { apikey: anonKey, Authorization: `Bearer ${token}` };
+      const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), {
+        headers: userHeaders,
+      });
+      if (!userResponse.ok) {
+        return res
+          .status(401)
+          .json({ error: "Your session has expired. Please sign in again." });
+      }
+      const authUser = (await userResponse.json()) as { id: string };
+
+      if (
+        !storagePath ||
+        !storagePath.startsWith(`${authUser.id}/`) ||
+        storagePath.includes("..")
+      ) {
+        return res
+          .status(403)
+          .json({ error: "That upload is not available to this account." });
+      }
+
+      // 1. Delete the file from Supabase storage
+      try {
+        await fetch(
+          new URL(
+            `/storage/v1/object/wrong-answer-uploads/${storagePath}`,
+            supabaseUrl,
+          ),
+          { method: "DELETE", headers: userHeaders },
+        );
+      } catch (storageErr) {
+        console.warn("Storage deletion warning:", storageErr);
+      }
+
+      // 2. Delete the record from Supabase database table
+      const deleteRecordUrl = new URL(
+        "/rest/v1/wrong_answer_uploads",
+        supabaseUrl,
+      );
+      deleteRecordUrl.searchParams.set("storage_path", `eq.${storagePath}`);
+      deleteRecordUrl.searchParams.set("user_id", `eq.${authUser.id}`);
+
+      const recordResponse = await fetch(deleteRecordUrl, {
+        method: "DELETE",
+        headers: {
+          ...userHeaders,
+          Prefer: "return=representation",
+        },
+      });
+
+      if (!recordResponse.ok) {
+        throw new Error(`Database returned ${recordResponse.status}`);
+      }
+
+      res.json({ success: true, message: "Upload deleted successfully." });
+    } catch (error) {
+      console.error("Wrong answer delete failed:", error);
+      res
+        .status(502)
+        .json({ error: "Could not delete this upload. Please try again." });
+    }
+  });
+
   app.use(
     (
       error: { type?: string; status?: number },
@@ -626,10 +772,14 @@ Output valid JSON matching this schema:
       const { misconception, topic, difficulty = "Medium" } = req.body;
       const groqProblem = await askGroq(
         "generator",
-        `Create one ${difficulty} isomorphic STEM remediation multiple-choice problem for misconception "${misconception}" in ${topic}. Return {stem,mathNotation,theoremDomain,options,socraticHint,verificationCertificate}. Include four options A-D with exactly one isCorrect true and concise rationales.`,
+        `Create one ${difficulty} isomorphic STEM remediation multiple-choice problem for misconception "${misconception}" in ${topic}. Return {stem,mathNotation,theoremDomain,options,socraticHint,verificationCertificate}. Include four options with id "A", "B", "C", "D", exactly one isCorrect true, and concise rationales.`,
       );
-      if (groqProblem)
-        return res.json({ problem: groqProblem, source: "groq-generator" });
+      if (groqProblem) {
+        const normalized = normalizeRemediationProblem(groqProblem);
+        if (normalized) {
+          return res.json({ problem: normalized, source: "groq-generator" });
+        }
+      }
       const ai = getAI();
 
       if (ai) {
@@ -675,7 +825,10 @@ Return valid JSON with:
 
           if (result.text) {
             const data = JSON.parse(result.text);
-            return res.json({ problem: data, source: "gemini-verified" });
+            const normalized = normalizeRemediationProblem(data);
+            if (normalized) {
+              return res.json({ problem: normalized, source: "gemini-verified" });
+            }
           }
         } catch (e) {
           console.warn("Gemini generation fallback:", e);

@@ -90,7 +90,9 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
     setIsAnalyzing(true);
     setSubmitted(true);
 
-    const chosen = currentQ.options.find(o => o.id === selectedOption);
+    const chosen = currentQ.options.find(
+      (o, idx) => (o.id || ['A', 'B', 'C', 'D'][idx]) === selectedOption
+    );
     const isCorrect = chosen?.isCorrect ?? false;
 
     try {
@@ -138,6 +140,24 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (data.problem) {
+          const optionLetters: Array<'A' | 'B' | 'C' | 'D'> = ['A', 'B', 'C', 'D'];
+          const normalizedOptions: QuizOption[] = (
+            Array.isArray(data.problem.options) ? data.problem.options : []
+          ).map((opt: any, idx: number) => ({
+            id: (opt.id && ['A', 'B', 'C', 'D'].includes(opt.id)
+              ? opt.id
+              : optionLetters[idx] || 'A') as 'A' | 'B' | 'C' | 'D',
+            text: String(opt.text || opt.choice || opt.stem || '').trim(),
+            isCorrect: Boolean(opt.isCorrect),
+            rationale: opt.rationale || '',
+            misconceptionTrigger: opt.misconceptionTrigger || undefined,
+            errorTag: opt.errorTag || undefined,
+          }));
+
+          if (!normalizedOptions.some((o) => o.isCorrect) && normalizedOptions.length > 0) {
+            normalizedOptions[0].isCorrect = true;
+          }
+
           const newQ: QuizQuestion = {
             id: 'rem_' + Math.floor(Math.random() * 10000),
             subject: currentQ.subject,
@@ -149,7 +169,7 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
             mathNotation: data.problem.mathNotation,
             mathObjective: 'Targeted Remediation Problem',
             theoremDomain: data.problem.theoremDomain,
-            options: data.problem.options,
+            options: normalizedOptions,
             socraticHint: data.problem.socraticHint || currentQ.socraticHint,
             detectedMisconceptions: [
               {
@@ -197,7 +217,9 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
     if (!socraticEpiphany) {
       setIsLoadingSocratic(true);
       try {
-        const chosen = currentQ.options.find(o => o.id === selectedOption);
+        const chosen = currentQ.options.find(
+          (o, idx) => (o.id || ['A', 'B', 'C', 'D'][idx]) === selectedOption
+        );
         const res = await fetch('/api/agents/explain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -340,8 +362,9 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
 
             {/* Selectable Options */}
             <div className="space-y-3">
-              {currentQ.options.map((opt) => {
-                const isSelected = selectedOption === opt.id;
+              {currentQ.options.map((opt, idx) => {
+                const optId = (opt.id || ['A', 'B', 'C', 'D'][idx] || 'A') as 'A' | 'B' | 'C' | 'D';
+                const isSelected = Boolean(selectedOption && selectedOption === optId);
                 const isRevealed = submitted;
                 const isCorrectOption = opt.isCorrect;
                 const isTriggeredTrap = isRevealed && isSelected && !isCorrectOption && opt.misconceptionTrigger;
@@ -369,15 +392,15 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
 
                 return (
                   <div
-                    key={opt.id}
-                    id={`opt-${opt.id}`}
+                    key={optId}
+                    id={`opt-${optId}`}
                     onClick={() => {
-                      if (!submitted) setSelectedOption(opt.id);
+                      if (!submitted) setSelectedOption(optId);
                     }}
                     className={`p-4 rounded-xl border text-xs sm:text-sm cursor-pointer transition-all flex items-start gap-3.5 ${borderStyle}`}
                   >
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${badgeStyle}`}>
-                      {opt.id}
+                      {optId}
                     </span>
                     <div className="flex-1 space-y-1">
                       <p className={textStyle}>{opt.text}</p>

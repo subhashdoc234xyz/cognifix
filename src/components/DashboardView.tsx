@@ -7,6 +7,7 @@ import {
   Layers,
   LoaderCircle,
   Network,
+  Trash2,
 } from "lucide-react";
 import {
   DiagnosticLog,
@@ -33,6 +34,7 @@ interface DashboardViewProps {
   ) => void;
   uploadHistory: UploadedWorkRecord[];
   onUploadSaved: (upload: UploadedWorkRecord) => void;
+  onDeleteUpload?: (storagePath: string) => Promise<void>;
 }
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
 const acceptedTypes = new Set([
@@ -54,9 +56,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenWorkspace,
   uploadHistory,
   onUploadSaved,
+  onDeleteUpload,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [uploadedWork, setUploadedWork] = useState<UploadedWork | null>(() => {
     try {
@@ -128,6 +132,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       );
     } finally {
       setIsDiagnosing(false);
+    }
+  };
+
+  const handleDelete = async (storagePath: string) => {
+    if (deletingPath) return;
+    if (!window.confirm("Are you sure you want to delete this upload?")) return;
+    setDeletingPath(storagePath);
+    setUploadMessage(null);
+    try {
+      if (onDeleteUpload) {
+        await onDeleteUpload(storagePath);
+      }
+      if (uploadedWork?.path === storagePath) {
+        localStorage.removeItem("cognifix_uploaded_work");
+        setUploadedWork(null);
+      }
+    } catch (error) {
+      setUploadMessage(
+        error instanceof Error ? error.message : "Failed to delete upload.",
+      );
+    } finally {
+      setDeletingPath(null);
     }
   };
 
@@ -262,22 +288,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </p>
                       )}
                     </div>
-                    {workspace ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {workspace ? (
+                        <button
+                          onClick={() => onOpenWorkspace(workspace)}
+                          className="rounded-lg bg-[#006096] px-3 py-2 text-xs font-bold text-white hover:bg-[#007abc] transition"
+                        >
+                          Open learning set
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => void onDiagnoseUpload(upload)}
+                          disabled={isDiagnosing}
+                          className="rounded-lg bg-[#006096] px-3 py-2 text-xs font-bold text-white hover:bg-[#007abc] transition disabled:opacity-60"
+                        >
+                          Create learning set
+                        </button>
+                      )}
                       <button
-                        onClick={() => onOpenWorkspace(workspace)}
-                        className="rounded-lg bg-[#006096] px-3 py-2 text-xs font-bold text-white"
+                        type="button"
+                        onClick={() => void handleDelete(upload.path)}
+                        disabled={deletingPath === upload.path}
+                        title="Delete this upload"
+                        className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100 hover:border-red-300 transition disabled:opacity-50"
                       >
-                        Open learning set
+                        {deletingPath === upload.path ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => void onDiagnoseUpload(upload)}
-                        disabled={isDiagnosing}
-                        className="rounded-lg bg-[#006096] px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
-                      >
-                        Create learning set
-                      </button>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -329,26 +370,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </p>
                     )}
                   </button>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() =>
+                          onOpenWorkspace(workspace, "practice-and-quiz")
+                        }
+                        className="rounded-lg bg-[#006096] px-3 py-2 text-xs font-bold text-white hover:bg-[#007abc] transition"
+                      >
+                        Practice quiz
+                      </button>
+                      <button
+                        onClick={() => onOpenWorkspace(workspace, "mind-map")}
+                        className="rounded-lg border border-[#006096] px-3 py-2 text-xs font-bold text-[#006096] hover:bg-[#eff4ff] transition"
+                      >
+                        Mind map
+                      </button>
+                      <button
+                        onClick={() => onOpenWorkspace(workspace, "flashcards")}
+                        className="rounded-lg border border-[#006096] px-3 py-2 text-xs font-bold text-[#006096] hover:bg-[#eff4ff] transition"
+                      >
+                        Flashcards
+                      </button>
+                    </div>
                     <button
-                      onClick={() =>
-                        onOpenWorkspace(workspace, "practice-and-quiz")
-                      }
-                      className="rounded-lg bg-[#006096] px-3 py-2 text-xs font-bold text-white"
+                      type="button"
+                      onClick={() => void handleDelete(workspace.uploadPath)}
+                      disabled={deletingPath === workspace.uploadPath}
+                      title="Delete this learning set and upload"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition disabled:opacity-50"
                     >
-                      Practice quiz
-                    </button>
-                    <button
-                      onClick={() => onOpenWorkspace(workspace, "mind-map")}
-                      className="rounded-lg border border-[#006096] px-3 py-2 text-xs font-bold text-[#006096]"
-                    >
-                      Mind map
-                    </button>
-                    <button
-                      onClick={() => onOpenWorkspace(workspace, "flashcards")}
-                      className="rounded-lg border border-[#006096] px-3 py-2 text-xs font-bold text-[#006096]"
-                    >
-                      Flashcards
+                      {deletingPath === workspace.uploadPath ? (
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
