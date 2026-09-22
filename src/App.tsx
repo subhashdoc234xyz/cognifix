@@ -138,6 +138,11 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handlePracticeQuestionChanged = (nextQuestion: QuizQuestion) => {
+    if (!user.isGuest) localStorage.setItem(uploadDiagnosticStorageKey(user.id), JSON.stringify(nextQuestion));
+    setActiveQuestion(nextQuestion);
+  };
+
   const handleQuestionCompleted = (isCorrect: boolean, errorTag?: string) => {
     setUser(prev => ({
       ...prev,
@@ -204,6 +209,7 @@ export default function App() {
             question={activeQuestion}
             onNavigate={handleNavigate}
             onQuestionCompleted={handleQuestionCompleted}
+            onQuestionChanged={handlePracticeQuestionChanged}
           />
         )}
 

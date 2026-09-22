@@ -25,12 +25,14 @@ interface PracticeQuizViewProps {
   question: QuizQuestion;
   onNavigate: (view: ViewMode) => void;
   onQuestionCompleted?: (isCorrect: boolean, errorTag?: string) => void;
+  onQuestionChanged?: (question: QuizQuestion) => void;
 }
 
 export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
   question,
   onNavigate,
-  onQuestionCompleted
+  onQuestionCompleted,
+  onQuestionChanged
 }) => {
   const [currentQ, setCurrentQ] = useState<QuizQuestion>(question);
   const [selectedOption, setSelectedOption] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
@@ -163,9 +165,13 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
           };
 
           setCurrentQ(newQ);
+          onQuestionChanged?.(newQ);
           setSelectedOption(null);
+          setStudentReasoning('');
           setSubmitted(false);
           setDiagnosisResult(null);
+          setSocraticEpiphany(null);
+          setShowHint(false);
           setVerificationData(data.problem.verificationCertificate);
         }
       }
@@ -174,6 +180,15 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
     } finally {
       setIsGeneratingRemediation(false);
     }
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQ.questionNumber >= currentQ.totalQuestions) {
+      onNavigate('dashboard');
+      return;
+    }
+    const focus = currentQ.detectedMisconceptions[0]?.name || `Core skills in ${currentQ.topic}`;
+    void handleGenerateRemediation(focus);
   };
 
   // Trigger Explainer / Socratic Agent
@@ -472,14 +487,25 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
                     )}
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleOpenSocratic}
-                    className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Ask Socratic Tutor</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleOpenSocratic}
+                      className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Ask Socratic Tutor</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextQuestion}
+                      disabled={isGeneratingRemediation}
+                      className="px-5 py-2 rounded-xl bg-[#006096] text-white font-bold text-xs hover:bg-[#007abc] disabled:opacity-60 transition-all shadow-sm flex items-center gap-2"
+                    >
+                      {isGeneratingRemediation ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                      <span>{currentQ.questionNumber >= currentQ.totalQuestions ? 'Finish practice' : 'Next question'}</span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -536,8 +562,8 @@ export const PracticeQuizView: React.FC<PracticeQuizViewProps> = ({
                 <div className="p-3.5 rounded-xl bg-gradient-to-br from-[#eff4ff] to-[#e5eeff] border border-[#006096]/30 text-xs space-y-2">
                   <div className="flex items-center justify-between font-bold text-[#006096]">
                     <span>Agent Diagnosis</span>
-                    <span className="text-[10px] font-mono bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
-                      {diagnosisResult.errorTag || 'Err: Detected'}
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${diagnosisResult.misconception === 'None' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                      {diagnosisResult.misconception === 'None' ? 'Correct' : diagnosisResult.errorTag || 'Err: Detected'}
                     </span>
                   </div>
                   <p className="font-bold text-[#0b1c30]">{diagnosisResult.misconception}</p>
