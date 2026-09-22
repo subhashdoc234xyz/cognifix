@@ -28,6 +28,18 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Backfill people who authenticated before this schema was installed. The
+-- onboarding trigger below covers every account created from this point on.
+INSERT INTO public.profiles (id, email, full_name, role, is_guest)
+SELECT
+  id,
+  email,
+  COALESCE(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1)),
+  'student',
+  false
+FROM auth.users
+ON CONFLICT (id) DO NOTHING;
+
 -- Defined after public.profiles because SQL-language functions validate their
 -- referenced relations when created.
 CREATE OR REPLACE FUNCTION public.is_admin()

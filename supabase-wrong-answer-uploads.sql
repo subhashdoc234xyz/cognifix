@@ -1,6 +1,18 @@
 -- CogniFix wrong-answer upload setup
 -- Run this file by itself in Supabase SQL Editor when the main schema already exists.
 
+-- Backfill users who signed in before the profiles trigger existed. Existing
+-- profiles are preserved unchanged.
+INSERT INTO public.profiles (id, email, full_name, role, is_guest)
+SELECT
+  id,
+  email,
+  COALESCE(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1)),
+  'student',
+  false
+FROM auth.users
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'wrong-answer-uploads',
