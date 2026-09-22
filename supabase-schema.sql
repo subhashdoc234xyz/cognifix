@@ -14,23 +14,6 @@
 -- Ensure pgcrypto extension is active for UUID generation
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Helper function to check if the current requesting user has the 'admin' role.
--- Marked SECURITY DEFINER to bypass recursive RLS evaluations on the profiles table.
-CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
-  SELECT EXISTS (
-    SELECT 1 
-    FROM public.profiles 
-    WHERE id = auth.uid() 
-      AND role = 'admin'
-  );
-$$;
-
 -- ----------------------------------------------------------------------------
 -- 2. TABLE DEFINITIONS
 -- ----------------------------------------------------------------------------
@@ -44,6 +27,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   is_guest BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Defined after public.profiles because SQL-language functions validate their
+-- referenced relations when created.
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'admin'
+  );
+$$;
 
 -- 2. HISTORY (Logs every practice attempt and misconception trace)
 CREATE TABLE IF NOT EXISTS public.history (
