@@ -102,6 +102,20 @@ export default function App() {
     setCurrentView('practice-and-quiz');
   };
 
+  const handleDiagnoseUpload = async (upload: { path: string; name: string }) => {
+    if (!accessToken) throw new Error('Please sign in again before diagnosing your upload.');
+    const response = await fetch('/api/uploads/wrong-answer/diagnose', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storagePath: upload.path })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.question) throw new Error(result.error || 'Could not generate questions from this upload.');
+    setActiveQuestion(result.question as QuizQuestion);
+    setCurrentView('practice-and-quiz');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleQuestionCompleted = (isCorrect: boolean, errorTag?: string) => {
     setUser(prev => ({
       ...prev,
@@ -155,6 +169,7 @@ export default function App() {
             logs={logs}
             onNavigate={(view) => setCurrentView(view)}
             accessToken={accessToken}
+            onDiagnoseUpload={handleDiagnoseUpload}
           />
         )}
 

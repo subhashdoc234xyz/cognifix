@@ -31,5 +31,7 @@ services:
         sync: false
       - key: GROQ_DOCUMENT_API_KEY
         sync: false
+      - key: GROQ_DOCUMENT_MODEL
+        sync: false
       - key: GROQ_MODEL
         sync: false
