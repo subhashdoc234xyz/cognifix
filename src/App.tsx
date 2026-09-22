@@ -3,37 +3,54 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { ViewMode, UserProfile, DiagnosticLog, FlashcardItem, MindMapNode, QuizQuestion, UploadedLearningWorkspace } from './types';
-import { 
-  initialUserProfile, 
-  sampleQuizQuestion, 
+import React, { useState, useEffect } from "react";
+import {
+  ViewMode,
+  UserProfile,
+  DiagnosticLog,
+  FlashcardItem,
+  MindMapNode,
+  QuizQuestion,
+  UploadedLearningWorkspace,
+  UploadedWorkRecord,
+} from "./types";
+import {
+  initialUserProfile,
+  sampleQuizQuestion,
   sampleCalculusQuestion,
-  initialDiagnosticLogs, 
-  initialFlashcards, 
-  initialMindMapNodes, 
-  initialRoadmapSteps, 
-  initialTeacherStats 
-} from './data/initialData';
-import { Header } from './components/Header';
-import { Footer } from './components/Footer';
-import { LandingView } from './components/LandingView';
-import { DashboardView } from './components/DashboardView';
-import { PracticeQuizView } from './components/PracticeQuizView';
-import { FlashcardsView } from './components/FlashcardsView';
-import { MindMapView } from './components/MindMapView';
-import { RoadmapView } from './components/RoadmapView';
-import { TeacherPortalView } from './components/TeacherPortalView';
-import { AuthModal } from './components/AuthModal';
+  initialDiagnosticLogs,
+  initialFlashcards,
+  initialMindMapNodes,
+  initialRoadmapSteps,
+  initialTeacherStats,
+} from "./data/initialData";
+import { Header } from "./components/Header";
+import { Footer } from "./components/Footer";
+import { LandingView } from "./components/LandingView";
+import { DashboardView } from "./components/DashboardView";
+import { PracticeQuizView } from "./components/PracticeQuizView";
+import { FlashcardsView } from "./components/FlashcardsView";
+import { MindMapView } from "./components/MindMapView";
+import { RoadmapView } from "./components/RoadmapView";
+import { TeacherPortalView } from "./components/TeacherPortalView";
+import { AuthModal } from "./components/AuthModal";
 
-const uploadDiagnosticStorageKey = (userId: string) => `cognifix_upload_diagnostic_${userId}`;
-const uploadedWorkspacesStorageKey = (userId: string) => `cognifix_uploaded_workspaces_${userId}`;
+const uploadDiagnosticStorageKey = (userId: string) =>
+  `cognifix_upload_diagnostic_${userId}`;
+const uploadedWorkspacesStorageKey = (userId: string) =>
+  `cognifix_uploaded_workspaces_${userId}`;
 
 function loadSavedUploadDiagnostic(userId: string): QuizQuestion | null {
   if (!userId || userId === initialUserProfile.id) return null;
   try {
-    const saved = JSON.parse(localStorage.getItem(uploadDiagnosticStorageKey(userId)) || 'null') as QuizQuestion | null;
-    return saved?.stem && Array.isArray(saved.options) && saved.options.length === 4 ? saved : null;
+    const saved = JSON.parse(
+      localStorage.getItem(uploadDiagnosticStorageKey(userId)) || "null",
+    ) as QuizQuestion | null;
+    return saved?.stem &&
+      Array.isArray(saved.options) &&
+      saved.options.length === 4
+      ? saved
+      : null;
   } catch {
     return null;
   }
@@ -42,71 +59,118 @@ function loadSavedUploadDiagnostic(userId: string): QuizQuestion | null {
 function loadUploadedWorkspaces(userId: string): UploadedLearningWorkspace[] {
   if (!userId || userId === initialUserProfile.id) return [];
   try {
-    const saved = JSON.parse(localStorage.getItem(uploadedWorkspacesStorageKey(userId)) || '[]');
-    return Array.isArray(saved) ? saved.filter((item): item is UploadedLearningWorkspace => item?.question?.stem && item?.uploadPath) : [];
+    const saved = JSON.parse(
+      localStorage.getItem(uploadedWorkspacesStorageKey(userId)) || "[]",
+    );
+    return Array.isArray(saved)
+      ? saved.filter(
+          (item): item is UploadedLearningWorkspace =>
+            item?.question?.stem && item?.uploadPath,
+        )
+      : [];
   } catch {
     return [];
   }
 }
 
-function learningAssetsFor(question: QuizQuestion): { flashcards: FlashcardItem[]; nodes: MindMapNode[] } {
+function learningAssetsFor(question: QuizQuestion): {
+  flashcards: FlashcardItem[];
+  nodes: MindMapNode[];
+} {
   const misconception = question.detectedMisconceptions[0];
   return {
-    flashcards: [{
-      id: `upload-card-${question.id}`,
-      subject: question.subject,
-      topic: question.topic,
-      frontQuestion: question.stem,
-      backIntuition: question.options.find(option => option.isCorrect)?.rationale || question.socraticHint.anchor,
-      mathematicalProof: question.mathNotation || question.theoremDomain || 'Review the rule used in this question.',
-      trapWarning: misconception?.description || 'Check the original rule before choosing an answer.',
-      status: 'due', decayLevel: 'Critical', nextReview: 'Today'
-    }],
-    nodes: [{
-      id: `upload-node-${question.id}`,
-      label: question.topic,
-      subject: question.subject,
-      level: 1, x: 360, y: 220,
-      status: 'vulnerable',
-      misconceptionRisk: misconception?.name || 'Uploaded-work review',
-      prerequisites: [],
-      description: question.mathObjective || question.theoremDomain || 'Concept extracted from your uploaded work.'
-    }]
+    flashcards: [
+      {
+        id: `upload-card-${question.id}`,
+        subject: question.subject,
+        topic: question.topic,
+        frontQuestion: question.stem,
+        backIntuition:
+          question.options.find((option) => option.isCorrect)?.rationale ||
+          question.socraticHint.anchor,
+        mathematicalProof:
+          question.mathNotation ||
+          question.theoremDomain ||
+          "Review the rule used in this question.",
+        trapWarning:
+          misconception?.description ||
+          "Check the original rule before choosing an answer.",
+        status: "due",
+        decayLevel: "Critical",
+        nextReview: "Today",
+      },
+    ],
+    nodes: [
+      {
+        id: `upload-node-${question.id}`,
+        label: question.topic,
+        subject: question.subject,
+        level: 1,
+        x: 360,
+        y: 220,
+        status: "vulnerable",
+        misconceptionRisk: misconception?.name || "Uploaded-work review",
+        prerequisites: [],
+        description:
+          question.mathObjective ||
+          question.theoremDomain ||
+          "Concept extracted from your uploaded work.",
+      },
+    ],
   };
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ViewMode>('landing');
+  const [currentView, setCurrentView] = useState<ViewMode>("landing");
   const [user, setUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('cognifix_user');
+    const saved = localStorage.getItem("cognifix_user");
     if (!saved) return initialUserProfile;
     try {
       const parsed = JSON.parse(saved) as UserProfile;
       // Remove the legacy seeded profile from browsers that used the old demo build.
-      return parsed.id === 'usr_cogni_4092' || parsed.email === 'learner@cognifix.edu' ? initialUserProfile : parsed;
+      return parsed.id === "usr_cogni_4092" ||
+        parsed.email === "learner@cognifix.edu"
+        ? initialUserProfile
+        : parsed;
     } catch {
       return initialUserProfile;
     }
   });
 
-  const [activeQuestion, setActiveQuestion] = useState<QuizQuestion>(sampleQuizQuestion);
-  const [uploadedWorkspaces, setUploadedWorkspaces] = useState<UploadedLearningWorkspace[]>([]);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [activeQuestion, setActiveQuestion] =
+    useState<QuizQuestion>(sampleQuizQuestion);
+  const [uploadedWorkspaces, setUploadedWorkspaces] = useState<
+    UploadedLearningWorkspace[]
+  >([]);
+  const [uploadHistory, setUploadHistory] = useState<UploadedWorkRecord[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
+    null,
+  );
   const [logs, setLogs] = useState<DiagnosticLog[]>(initialDiagnosticLogs);
   const [flashcards, setFlashcards] = useState<typeof initialFlashcards>([]);
-  const [mindMapNodes, setMindMapNodes] = useState<typeof initialMindMapNodes>([]);
+  const [mindMapNodes, setMindMapNodes] = useState<typeof initialMindMapNodes>(
+    [],
+  );
   const [roadmapSteps] = useState<typeof initialRoadmapSteps>([]);
   const [teacherStats] = useState<typeof initialTeacherStats>({
-    totalStudents: 0, avgMastery: 0, activeTrapsFlagged: 0, remediationSuccessRate: 0,
-    topMisconceptions: [], studentRoster: []
+    totalStudents: 0,
+    avgMastery: 0,
+    activeTrapsFlagged: 0,
+    remediationSuccessRate: 0,
+    topMisconceptions: [],
+    studentRoster: [],
   });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(() => sessionStorage.getItem('cognifix_access_token'));
+  const [accessToken, setAccessToken] = useState<string | null>(() =>
+    sessionStorage.getItem("cognifix_access_token"),
+  );
   const isAuthenticated = !user.isGuest;
 
   // Keep an uploaded-work diagnostic tied to the student after a new sign-in.
   useEffect(() => {
-    const savedQuestion = isAuthenticated ? loadSavedUploadDiagnostic(user.id) : null;
+    const savedQuestion = isAuthenticated
+      ? loadSavedUploadDiagnostic(user.id)
+      : null;
     if (savedQuestion) setActiveQuestion(savedQuestion);
   }, [isAuthenticated, user.id]);
 
@@ -116,96 +180,175 @@ export default function App() {
   }, [isAuthenticated, user.id]);
 
   useEffect(() => {
-    if (!user.isGuest) localStorage.setItem(uploadedWorkspacesStorageKey(user.id), JSON.stringify(uploadedWorkspaces));
+    if (!accessToken) return;
+    fetch("/api/uploads/wrong-answer", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((result) =>
+        setUploadHistory(Array.isArray(result.uploads) ? result.uploads : []),
+      )
+      .catch(() => setUploadHistory([]));
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!user.isGuest)
+      localStorage.setItem(
+        uploadedWorkspacesStorageKey(user.id),
+        JSON.stringify(uploadedWorkspaces),
+      );
   }, [uploadedWorkspaces, user.id, user.isGuest]);
 
   useEffect(() => {
-    const callbackToken = new URLSearchParams(window.location.hash.slice(1)).get('access_token');
-    const token = callbackToken || sessionStorage.getItem('cognifix_access_token');
+    const callbackToken = new URLSearchParams(
+      window.location.hash.slice(1),
+    ).get("access_token");
+    const token =
+      callbackToken || sessionStorage.getItem("cognifix_access_token");
     if (!token) return;
     try {
-      const encodedPayload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-      const paddedPayload = encodedPayload.padEnd(encodedPayload.length + (4 - encodedPayload.length % 4) % 4, '=');
-      const payload = JSON.parse(decodeURIComponent(escape(atob(paddedPayload))));
+      const encodedPayload = token
+        .split(".")[1]
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+      const paddedPayload = encodedPayload.padEnd(
+        encodedPayload.length + ((4 - (encodedPayload.length % 4)) % 4),
+        "=",
+      );
+      const payload = JSON.parse(
+        decodeURIComponent(escape(atob(paddedPayload))),
+      );
       const metadata = payload.user_metadata || {};
       setUser({
         id: payload.sub,
-        name: metadata.full_name || metadata.name || payload.email?.split('@')[0] || 'Student',
-        email: payload.email || '',
+        name:
+          metadata.full_name ||
+          metadata.name ||
+          payload.email?.split("@")[0] ||
+          "Student",
+        email: payload.email || "",
         isGuest: false,
-        role: 'student',
+        role: "student",
         streak: 0,
         xp: 0,
-        tier: 'Self-paced learner',
-        masteryScore: 0
+        tier: "Self-paced learner",
+        masteryScore: 0,
       });
       const savedQuestion = loadSavedUploadDiagnostic(payload.sub);
       if (savedQuestion) setActiveQuestion(savedQuestion);
-      sessionStorage.setItem('cognifix_access_token', token);
+      sessionStorage.setItem("cognifix_access_token", token);
       setAccessToken(token);
-      window.history.replaceState(null, '', window.location.pathname);
-      setCurrentView('dashboard');
+      window.history.replaceState(null, "", window.location.pathname);
+      setCurrentView("dashboard");
     } catch {
-      sessionStorage.removeItem('cognifix_access_token');
+      sessionStorage.removeItem("cognifix_access_token");
       setAccessToken(null);
-      window.history.replaceState(null, '', window.location.pathname);
+      window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('cognifix_user', JSON.stringify(user));
+    localStorage.setItem("cognifix_user", JSON.stringify(user));
   }, [user]);
 
   const handleUpdateUser = (updated: UserProfile) => {
     setUser(updated);
-    setCurrentView('dashboard');
+    setCurrentView("dashboard");
   };
 
   const handleSelectPracticeTopic = (topic: string) => {
-    if (topic.toLowerCase().includes('calculus')) {
+    if (topic.toLowerCase().includes("calculus")) {
       setActiveQuestion(sampleCalculusQuestion);
     } else {
       setActiveQuestion(sampleQuizQuestion);
     }
-    setCurrentView('practice-and-quiz');
+    setCurrentView("practice-and-quiz");
   };
 
-  const activateWorkspace = (workspace: UploadedLearningWorkspace, view: ViewMode = 'practice-and-quiz') => {
+  const activateWorkspace = (
+    workspace: UploadedLearningWorkspace,
+    view: ViewMode = "practice-and-quiz",
+  ) => {
     const assets = learningAssetsFor(workspace.question);
     setActiveWorkspaceId(workspace.id);
     setActiveQuestion(workspace.question);
     setFlashcards(assets.flashcards);
     setMindMapNodes(assets.nodes);
     setCurrentView(view);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDiagnoseUpload = async (upload: { path: string; name: string }) => {
-    if (!accessToken) throw new Error('Please sign in again before diagnosing your upload.');
-    const response = await fetch('/api/uploads/wrong-answer/diagnose', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storagePath: upload.path })
+  const handleDiagnoseUpload = async (upload: {
+    path: string;
+    name: string;
+  }) => {
+    if (!accessToken)
+      throw new Error("Please sign in again before diagnosing your upload.");
+    const response = await fetch("/api/uploads/wrong-answer/diagnose", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ storagePath: upload.path }),
     });
     const result = await response.json();
-    if (!response.ok || !result.question) throw new Error(result.error || 'Could not generate questions from this upload.');
+    if (!response.ok || !result.question)
+      throw new Error(
+        result.error || "Could not generate questions from this upload.",
+      );
     const generatedQuestion = result.question as QuizQuestion;
-    localStorage.setItem(uploadDiagnosticStorageKey(user.id), JSON.stringify(generatedQuestion));
+    localStorage.setItem(
+      uploadDiagnosticStorageKey(user.id),
+      JSON.stringify(generatedQuestion),
+    );
     const now = new Date().toISOString();
     const workspace: UploadedLearningWorkspace = {
-      id: upload.path, uploadPath: upload.path, uploadName: upload.name,
+      id: upload.path,
+      uploadPath: upload.path,
+      uploadName: upload.name,
       title: `${generatedQuestion.subject} · ${generatedQuestion.topic}`,
-      question: generatedQuestion, createdAt: now, updatedAt: now
+      question: generatedQuestion,
+      createdAt: now,
+      updatedAt: now,
     };
-    setUploadedWorkspaces(previous => [workspace, ...previous.filter(item => item.id !== workspace.id)]);
+    setUploadedWorkspaces((previous) => [
+      workspace,
+      ...previous.filter((item) => item.id !== workspace.id),
+    ]);
+    setUploadHistory((previous) => [
+      { path: upload.path, name: upload.name, createdAt: now },
+      ...previous.filter((item) => item.path !== upload.path),
+    ]);
     activateWorkspace(workspace);
   };
 
+  const handleUploadSaved = (upload: UploadedWorkRecord) => {
+    setUploadHistory((previous) => [
+      upload,
+      ...previous.filter((item) => item.path !== upload.path),
+    ]);
+  };
+
   const handlePracticeQuestionChanged = (nextQuestion: QuizQuestion) => {
-    if (!user.isGuest) localStorage.setItem(uploadDiagnosticStorageKey(user.id), JSON.stringify(nextQuestion));
+    if (!user.isGuest)
+      localStorage.setItem(
+        uploadDiagnosticStorageKey(user.id),
+        JSON.stringify(nextQuestion),
+      );
     setActiveQuestion(nextQuestion);
     if (activeWorkspaceId) {
-      setUploadedWorkspaces(previous => previous.map(workspace => workspace.id === activeWorkspaceId ? { ...workspace, question: nextQuestion, updatedAt: new Date().toISOString() } : workspace));
+      setUploadedWorkspaces((previous) =>
+        previous.map((workspace) =>
+          workspace.id === activeWorkspaceId
+            ? {
+                ...workspace,
+                question: nextQuestion,
+                updatedAt: new Date().toISOString(),
+              }
+            : workspace,
+        ),
+      );
       const assets = learningAssetsFor(nextQuestion);
       setFlashcards(assets.flashcards);
       setMindMapNodes(assets.nodes);
@@ -213,38 +356,42 @@ export default function App() {
   };
 
   const handleQuestionCompleted = (isCorrect: boolean, errorTag?: string) => {
-    setUser(prev => ({
+    setUser((prev) => ({
       ...prev,
       xp: prev.xp + (isCorrect ? 35 : 15),
-      masteryScore: isCorrect ? Math.min(100, prev.masteryScore + 1) : Math.max(50, prev.masteryScore - 1)
+      masteryScore: isCorrect
+        ? Math.min(100, prev.masteryScore + 1)
+        : Math.max(50, prev.masteryScore - 1),
     }));
 
     if (!isCorrect && errorTag) {
       const newLog: DiagnosticLog = {
-        traceId: '#LOG-' + Math.floor(8200 + Math.random() * 800),
+        traceId: "#LOG-" + Math.floor(8200 + Math.random() * 800),
         subject: activeQuestion.subject,
         topic: activeQuestion.topic,
-        flaggedTrap: activeQuestion.detectedMisconceptions[0]?.name || 'Cognitive Distortion',
-        status: 'Active Queue',
-        resolvedIn: 'Under Remediation',
-        date: 'Just now',
-        severity: 'critical'
+        flaggedTrap:
+          activeQuestion.detectedMisconceptions[0]?.name ||
+          "Cognitive Distortion",
+        status: "Active Queue",
+        resolvedIn: "Under Remediation",
+        date: "Just now",
+        severity: "critical",
       };
-      setLogs(prev => [newLog, ...prev]);
+      setLogs((prev) => [newLog, ...prev]);
     }
   };
 
   const handleNavigate = (view: ViewMode) => {
-    if (view !== 'landing' && !isAuthenticated) {
+    if (view !== "landing" && !isAuthenticated) {
       setIsAuthOpen(true);
       return;
     }
-    if (view === 'practice-and-quiz') {
+    if (view === "practice-and-quiz") {
       const savedQuestion = loadSavedUploadDiagnostic(user.id);
       if (savedQuestion) setActiveQuestion(savedQuestion);
     }
     setCurrentView(view);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -259,11 +406,11 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {currentView === 'landing' && (
+        {currentView === "landing" && (
           <LandingView onOpenAuth={() => setIsAuthOpen(true)} />
         )}
 
-        {currentView === 'dashboard' && (
+        {currentView === "dashboard" && (
           <DashboardView
             user={user}
             logs={logs}
@@ -272,10 +419,12 @@ export default function App() {
             onDiagnoseUpload={handleDiagnoseUpload}
             workspaces={uploadedWorkspaces}
             onOpenWorkspace={activateWorkspace}
+            uploadHistory={uploadHistory}
+            onUploadSaved={handleUploadSaved}
           />
         )}
 
-        {currentView === 'practice-and-quiz' && (
+        {currentView === "practice-and-quiz" && (
           <PracticeQuizView
             question={activeQuestion}
             onNavigate={handleNavigate}
@@ -284,40 +433,31 @@ export default function App() {
           />
         )}
 
-        {currentView === 'flashcards' && (
-          <FlashcardsView
-            flashcards={flashcards}
-            onNavigate={handleNavigate}
-          />
+        {currentView === "flashcards" && (
+          <FlashcardsView flashcards={flashcards} onNavigate={handleNavigate} />
         )}
 
-        {currentView === 'mind-map' && (
+        {currentView === "mind-map" && (
           <MindMapView
             nodes={mindMapNodes}
             onNavigate={handleNavigate}
             onSelectNodeForPractice={(node) => {
-              if (node.subject.toLowerCase().includes('calculus')) {
+              if (node.subject.toLowerCase().includes("calculus")) {
                 setActiveQuestion(sampleCalculusQuestion);
               } else {
                 setActiveQuestion(sampleQuizQuestion);
               }
-              setCurrentView('practice-and-quiz');
+              setCurrentView("practice-and-quiz");
             }}
           />
         )}
 
-        {currentView === 'roadmap' && (
-          <RoadmapView
-            steps={roadmapSteps}
-            onNavigate={handleNavigate}
-          />
+        {currentView === "roadmap" && (
+          <RoadmapView steps={roadmapSteps} onNavigate={handleNavigate} />
         )}
 
-        {currentView === 'teacher-portal' && (
-          <TeacherPortalView
-            stats={teacherStats}
-            onNavigate={handleNavigate}
-          />
+        {currentView === "teacher-portal" && (
+          <TeacherPortalView stats={teacherStats} onNavigate={handleNavigate} />
         )}
       </main>
 

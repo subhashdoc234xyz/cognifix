@@ -1,18 +1,18 @@
-export type ViewMode = 
-  | 'landing' 
-  | 'dashboard' 
-  | 'practice-and-quiz' 
-  | 'flashcards' 
-  | 'mind-map' 
-  | 'roadmap' 
-  | 'teacher-portal';
+export type ViewMode =
+  | "landing"
+  | "dashboard"
+  | "practice-and-quiz"
+  | "flashcards"
+  | "mind-map"
+  | "roadmap"
+  | "teacher-portal";
 
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
   isGuest: boolean;
-  role: 'student' | 'teacher';
+  role: "student" | "teacher";
   streak: number;
   xp: number;
   tier: string;
@@ -20,7 +20,7 @@ export interface UserProfile {
 }
 
 export interface QuizOption {
-  id: 'A' | 'B' | 'C' | 'D';
+  id: "A" | "B" | "C" | "D";
   text: string;
   rationale?: string;
   isCorrect: boolean;
@@ -53,7 +53,7 @@ export interface QuizQuestion {
     description: string;
     historicalFrequency: string;
     status: string;
-    triggerOption: 'A' | 'B' | 'C' | 'D';
+    triggerOption: "A" | "B" | "C" | "D";
   }[];
   knowledgeTree: {
     nodeId: string;
@@ -72,15 +72,21 @@ export interface UploadedLearningWorkspace {
   updatedAt: string;
 }
 
+export interface UploadedWorkRecord {
+  path: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface DiagnosticLog {
   traceId: string;
   subject: string;
   topic: string;
   flaggedTrap: string;
-  status: 'Remediated' | 'Active Queue' | 'Diagnosing';
+  status: "Remediated" | "Active Queue" | "Diagnosing";
   resolvedIn: string;
   date: string;
-  severity: 'critical' | 'moderate' | 'low';
+  severity: "critical" | "moderate" | "low";
 }
 
 export interface FlashcardItem {
@@ -91,8 +97,8 @@ export interface FlashcardItem {
   backIntuition: string;
   mathematicalProof: string;
   trapWarning: string;
-  status: 'due' | 'known' | 'learning';
-  decayLevel: 'Critical' | 'Stable' | 'Optimal';
+  status: "due" | "known" | "learning";
+  decayLevel: "Critical" | "Stable" | "Optimal";
   nextReview: string;
 }
 
@@ -103,7 +109,7 @@ export interface MindMapNode {
   level: number;
   x: number;
   y: number;
-  status: 'mastered' | 'vulnerable' | 'unlocked';
+  status: "mastered" | "vulnerable" | "unlocked";
   misconceptionRisk?: string;
   prerequisites: string[];
   description: string;
@@ -119,7 +125,7 @@ export interface RoadmapStep {
   timeEstimate: string;
   resources: {
     title: string;
-    type: 'video' | 'docs' | 'practice';
+    type: "video" | "docs" | "practice";
     url: string;
     source: string;
   }[];
@@ -135,14 +141,14 @@ export interface TeacherClassStats {
     topic: string;
     count: number;
     pctClass: number;
-    severity: 'high' | 'medium';
+    severity: "high" | "medium";
   }[];
   studentRoster: {
     id: string;
     name: string;
     email: string;
     mastery: number;
-    status: 'Needs Remediation' | 'On Track' | 'Accelerated';
+    status: "Needs Remediation" | "On Track" | "Accelerated";
     lastActive: string;
     primaryTrap: string;
   }[];
