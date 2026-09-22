@@ -119,6 +119,15 @@ export interface MindMapNode {
   whyItMatters?: string;
 }
 
+export interface RoadmapResource {
+  id?: string;
+  title: string;
+  type: "video" | "docs" | "practice";
+  url: string;
+  source: string;
+  completed?: boolean;
+}
+
 export interface RoadmapStep {
   id: string;
   stepNumber: number;
@@ -127,12 +136,17 @@ export interface RoadmapStep {
   description: string;
   completed: boolean;
   timeEstimate: string;
-  resources: {
-    title: string;
-    type: "video" | "docs" | "practice";
-    url: string;
-    source: string;
-  }[];
+  resources: RoadmapResource[];
+}
+
+export interface SavedRoadmap {
+  id: string;
+  topic: string;
+  roadmapTitle: string;
+  estimatedTotalHours: string;
+  steps: RoadmapStep[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TeacherClassStats {

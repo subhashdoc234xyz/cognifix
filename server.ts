@@ -973,25 +973,216 @@ Format JSON output with:
     }
   });
 
-  // 4. Search Agent API (DuckDuckGo / Open Reference search for verified video & docs)
+  // --- DuckDuckGo Organic Search Helper ---
+  async function searchDuckDuckGoOrganic(
+    query: string,
+    maxResults = 3,
+  ): Promise<Array<{ title: string; snippet: string; url: string; source: string }>> {
+    try {
+      const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      });
+
+      if (!res.ok) throw new Error(`DDG returned ${res.status}`);
+      const html = await res.text();
+      const results: Array<{
+        title: string;
+        snippet: string;
+        url: string;
+        source: string;
+      }> = [];
+
+      const regex =
+        /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+      let match;
+      while ((match = regex.exec(html)) !== null && results.length < maxResults) {
+        let rawUrl = match[1];
+        if (rawUrl.includes("uddg=")) {
+          try {
+            const u = new URL(rawUrl, "https://duckduckgo.com");
+            rawUrl = decodeURIComponent(u.searchParams.get("uddg") || rawUrl);
+          } catch {
+            // ignore
+          }
+        }
+
+        if (
+          rawUrl.includes("duckduckgo.com/y.js") ||
+          rawUrl.includes("bing.com/aclick") ||
+          rawUrl.includes("googleadservices")
+        ) {
+          continue;
+        }
+
+        const title = match[2].replace(/<[^>]+>/g, "").trim();
+        const snippet = match[3].replace(/<[^>]+>/g, "").trim();
+        if (rawUrl && title) {
+          let source = "Internet Reference";
+          try {
+            const host = new URL(rawUrl).hostname.replace(/^www\./, "");
+            if (host.includes("youtube.com") || host.includes("youtu.be"))
+              source = "YouTube";
+            else if (host.includes("leetcode.com")) source = "LeetCode";
+            else if (host.includes("hackerrank.com")) source = "HackerRank";
+            else if (host.includes("github.com")) source = "GitHub";
+            else if (host.includes("python.org")) source = "Python Docs";
+            else if (host.includes("geeksforgeeks.org"))
+              source = "GeeksforGeeks";
+            else if (host.includes("w3schools.com")) source = "W3Schools";
+            else if (host.includes("freecodecamp.org"))
+              source = "freeCodeCamp";
+            else if (host.includes("khanacademy.org"))
+              source = "Khan Academy";
+            else source = host;
+          } catch {
+            // ignore
+          }
+
+          results.push({ title, snippet, url: rawUrl, source });
+        }
+      }
+
+      if (results.length > 0) return results;
+    } catch (err) {
+      console.warn("DuckDuckGo organic search error:", err);
+    }
+    return [];
+  }
+
+  // --- Helper to fetch real internet resources for roadmap milestones ---
+  async function fetchMilestoneResources(
+    skill: string,
+    stepTitle: string,
+    stepTopic: string,
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      type: "video" | "docs" | "practice";
+      url: string;
+      source: string;
+      completed: boolean;
+    }>
+  > {
+    const resources: Array<{
+      id: string;
+      title: string;
+      type: "video" | "docs" | "practice";
+      url: string;
+      source: string;
+      completed: boolean;
+    }> = [];
+
+    // Parallel DDG queries for Video, Docs, and Practice
+    const [videoResults, docResults, practiceResults] = await Promise.all([
+      searchDuckDuckGoOrganic(`${skill} ${stepTitle} tutorial video site:youtube.com`, 2),
+      searchDuckDuckGoOrganic(`${skill} ${stepTitle} documentation tutorial guide`, 3),
+      searchDuckDuckGoOrganic(`${skill} ${stepTitle} practice problems exercises leetcode hackerrank`, 3),
+    ]);
+
+    // 1. Video resource
+    if (videoResults.length > 0) {
+      resources.push({
+        id: `res_vid_${Math.random().toString(36).substring(2, 9)}`,
+        title: videoResults[0].title,
+        type: "video",
+        url: videoResults[0].url,
+        source: videoResults[0].source || "YouTube",
+        completed: false,
+      });
+    } else {
+      resources.push({
+        id: `res_vid_${Math.random().toString(36).substring(2, 9)}`,
+        title: `${stepTitle} - Video Masterclass & Code Walkthrough`,
+        type: "video",
+        url: `https://www.youtube.com/results?search_query=${encodeURIComponent(
+          skill + " " + stepTitle + " tutorial",
+        )}`,
+        source: "YouTube",
+        completed: false,
+      });
+    }
+
+    // 2. Documentation resource
+    const nonVideoDocs = docResults.filter((d) => !d.url.includes("youtube.com"));
+    if (nonVideoDocs.length > 0) {
+      resources.push({
+        id: `res_doc_${Math.random().toString(36).substring(2, 9)}`,
+        title: nonVideoDocs[0].title,
+        type: "docs",
+        url: nonVideoDocs[0].url,
+        source: nonVideoDocs[0].source || "Documentation",
+        completed: false,
+      });
+    } else {
+      resources.push({
+        id: `res_doc_${Math.random().toString(36).substring(2, 9)}`,
+        title: `${stepTitle} - Concepts & Reference Guide`,
+        type: "docs",
+        url: `https://duckduckgo.com/?q=${encodeURIComponent(
+          skill + " " + stepTitle + " documentation guide",
+        )}`,
+        source: "Documentation",
+        completed: false,
+      });
+    }
+
+    // 3. Practice site resource
+    const nonVideoPractice = practiceResults.filter((p) => !p.url.includes("youtube.com"));
+    if (nonVideoPractice.length > 0) {
+      resources.push({
+        id: `res_prac_${Math.random().toString(36).substring(2, 9)}`,
+        title: nonVideoPractice[0].title,
+        type: "practice",
+        url: nonVideoPractice[0].url,
+        source: nonVideoPractice[0].source || "Coding Practice",
+        completed: false,
+      });
+    } else {
+      resources.push({
+        id: `res_prac_${Math.random().toString(36).substring(2, 9)}`,
+        title: `${stepTitle} - Problem Solving & Practice Exercises`,
+        type: "practice",
+        url: `https://leetcode.com/problemset/?search=${encodeURIComponent(stepTitle)}`,
+        source: "LeetCode / Practice",
+        completed: false,
+      });
+    }
+
+    return resources;
+  }
+
+  // 4. Search Agent API (DuckDuckGo Live Search)
   app.post("/api/agents/search", async (req, res) => {
     try {
       const { query } = req.body;
-      const q = encodeURIComponent(
-        query || "Calculus limits infinity 3blue1brown",
-      );
+      const targetQuery = query || "Calculus limits infinity 3blue1brown";
 
-      // Attempt DuckDuckGo Instant Answer API
+      // 1. First attempt DuckDuckGo organic web search
+      const organic = await searchDuckDuckGoOrganic(targetQuery, 5);
+      if (organic.length > 0) {
+        return res.json({ results: organic });
+      }
+
+      // 2. Attempt DuckDuckGo Instant Answer API as backup
       try {
+        const q = encodeURIComponent(targetQuery);
         const ddgRes = await fetch(
           `https://api.duckduckgo.com/?q=${q}&format=json&no_html=1&skip_disambig=1`,
         );
         if (ddgRes.ok) {
-          const ddgData = await ddgRes.json();
+          const ddgData = (await ddgRes.json()) as any;
           const results = [];
           if (ddgData.AbstractText) {
             results.push({
-              title: ddgData.Heading || query,
+              title: ddgData.Heading || targetQuery,
               snippet: ddgData.AbstractText,
               url: ddgData.AbstractURL || "https://duckduckgo.com/?q=" + q,
               source: ddgData.AbstractSource || "DuckDuckGo Grounding",
@@ -1014,34 +1205,23 @@ Format JSON output with:
           }
         }
       } catch (e) {
-        console.warn("DuckDuckGo fetch warning:", e);
+        console.warn("DuckDuckGo Instant Answer fetch warning:", e);
       }
 
-      // Verified academic curated fallbacks
+      // 3. Fallback curated resources
       res.json({
         results: [
           {
-            title: "3Blue1Brown: Essence of Calculus - Chapter 7 (Limits)",
-            snippet:
-              "Visual explanation of limits, asymptotic behavior, and why algebraic tricks work geometrically.",
-            url: "https://www.youtube.com/watch?v=kfF40MiS7zA",
-            source: "YouTube Verified",
+            title: `${targetQuery} - Comprehensive Video Tutorial`,
+            snippet: `Search and watch interactive guided lessons on ${targetQuery}.`,
+            url: `https://www.youtube.com/results?search_query=${encodeURIComponent(targetQuery)}`,
+            source: "YouTube",
           },
           {
-            title:
-              "MIT 18.06 Linear Algebra - Gilbert Strang: Eigenvalues & Symmetric Matrices",
-            snippet:
-              "Lecture 25: Spectral Theorem, orthogonal eigenvectors, and positive definite matrices.",
-            url: "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/video_galleries/video-lectures/",
-            source: "MIT OpenCourseWare",
-          },
-          {
-            title:
-              "Paul's Online Math Notes: Indeterminate Forms and L'Hospital's Rule",
-            snippet:
-              "Comprehensive breakdown of infinity divided by infinity, common student algebraic missteps, and step-by-step proofs.",
-            url: "https://tutorial.math.lamar.edu/classes/calci/LHospitalsRule.aspx",
-            source: "Lamar Math Reference",
+            title: `${targetQuery} - Documentation & Tutorials`,
+            snippet: `Explore official documentation, guides, and practical walkthroughs.`,
+            url: `https://duckduckgo.com/?q=${encodeURIComponent(targetQuery + " documentation")}`,
+            source: "DuckDuckGo Reference",
           },
         ],
       });
@@ -1050,107 +1230,312 @@ Format JSON output with:
     }
   });
 
-  // 5. Roadmap Agent API
+  // 5. Custom Skill & Remediation Roadmap Agent API (Decomposes skill into chunked milestones + live DDG resources)
   app.post("/api/agents/roadmap", async (req, res) => {
     try {
-      const { userTraps = [], subject = "Mathematics" } = req.body;
-      const groqRoadmap = await askGroq(
-        "roadmap",
-        `Create a concise personalized STEM learning roadmap. Return {roadmapTitle,estimatedTotalHours,steps}. Subject: ${subject}. Misconceptions: ${JSON.stringify(userTraps)}. Each step needs title, topic, description, completed false, timeEstimate, resources.`,
-      );
-      if (groqRoadmap) return res.json(groqRoadmap);
-      const ai = getAI();
+      const { skill, userTraps = [], subject } = req.body;
+      const targetSkill = (skill || subject || "Python upto DSA").trim();
 
-      if (ai) {
-        try {
-          const response = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
-            contents: `You are the CogniFix Roadmap Agent. Create a personalized 4-step remediation roadmap to eliminate these cognitive traps: ${JSON.stringify(userTraps)} in ${subject}.
-Return JSON matching:
+      let roadmapTitle = `${targetSkill} Mastery Roadmap`;
+      let estimatedTotalHours = "40-50 hours";
+      let parsedSteps: Array<{
+        stepNumber: number;
+        title: string;
+        topic: string;
+        description: string;
+        timeEstimate: string;
+      }> = [];
+
+      // 1. Try Groq for skill decomposition
+      const groqPrompt = `You are an expert technical curriculum designer.
+The user wants to learn: "${targetSkill}".
+Decompose this curriculum into 3 to 6 ordered milestones in small logical chunks that progress step-by-step from foundations to mastery (e.g. if learning Python up to DSA: Basic Programming -> Intermediate Idioms & Collections -> Object-Oriented Programming (OOP) -> Foundational Data Structures -> Algorithms & Complexity -> Advanced DSA).
+Return JSON only:
 {
-  "roadmapTitle": "Title of sequence",
+  "roadmapTitle": "Title of the learning roadmap",
   "estimatedTotalHours": "X hours",
   "steps": [
     {
       "stepNumber": 1,
-      "title": "Title",
-      "topic": "Topic",
-      "description": "Concrete objective to dismantle the misconception",
-      "completed": boolean,
-      "timeEstimate": "45 mins",
-      "resources": [
-        { "title": "Resource title", "type": "video" | "docs" | "practice", "url": "URL", "source": "Source" }
-      ]
+      "title": "Module Title",
+      "topic": "Module Category (e.g. Basic Programming, OOP, DSA)",
+      "description": "Clear explanation of what the learner will master in this chunk",
+      "timeEstimate": "e.g. 6-8 hours"
     }
   ]
-}`,
-            config: {
-              responseMimeType: "application/json",
-            },
-          });
+}`;
 
-          if (response.text) {
-            return res.json(JSON.parse(response.text));
+      const groqRoadmap = await askGroq("roadmap", groqPrompt);
+      if (groqRoadmap && Array.isArray(groqRoadmap.steps) && groqRoadmap.steps.length > 0) {
+        roadmapTitle = groqRoadmap.roadmapTitle || roadmapTitle;
+        estimatedTotalHours = groqRoadmap.estimatedTotalHours || estimatedTotalHours;
+        parsedSteps = groqRoadmap.steps;
+      }
+
+      // 2. Try Gemini if Groq did not provide steps
+      if (parsedSteps.length === 0) {
+        const ai = getAI();
+        if (ai) {
+          try {
+            const geminiRes = await ai.models.generateContent({
+              model: "gemini-3.8-flash",
+              contents: groqPrompt,
+              config: { responseMimeType: "application/json" },
+            });
+            if (geminiRes.text) {
+              const geminiData = JSON.parse(geminiRes.text);
+              if (geminiData && Array.isArray(geminiData.steps) && geminiData.steps.length > 0) {
+                roadmapTitle = geminiData.roadmapTitle || roadmapTitle;
+                estimatedTotalHours = geminiData.estimatedTotalHours || estimatedTotalHours;
+                parsedSteps = geminiData.steps;
+              }
+            }
+          } catch (e) {
+            console.warn("Gemini roadmap generation fallback:", e);
           }
-        } catch (e) {
-          console.warn("Roadmap agent fallback:", e);
         }
       }
 
-      res.json({
-        roadmapTitle: "Calculus & Linear Algebra Foundations Remediation",
-        estimatedTotalHours: "6.5 hours",
-        steps: [
-          {
-            stepNumber: 1,
-            title: "Deconstruct Asymptotic Dominance & Indeterminate Limits",
-            topic: "Calculus II",
-            description:
-              "Replace the arithmetic infinity intuition with rigorous limit analysis and highest-power factoring.",
-            completed: true,
-            timeEstimate: "50 mins",
-            resources: [
-              {
-                title: "3Blue1Brown: Limits and Derivatives",
-                type: "video",
-                url: "https://youtube.com",
-                source: "YouTube",
-              },
-              {
-                title: "MIT OCW: Rational Function Limits",
-                type: "docs",
-                url: "https://ocw.mit.edu",
-                source: "MIT OCW",
-              },
-            ],
-          },
-          {
-            stepNumber: 2,
-            title: "Orthogonal Diagonalization & The Real Spectral Theorem",
-            topic: "Linear Algebra",
-            description:
-              "Prove why symmetric transformations preserve geometric eigenspace dimension without Jordan block defects.",
+      // 3. Smart curriculum fallback if AI services are unavailable
+      if (parsedSteps.length === 0) {
+        const lower = targetSkill.toLowerCase();
+        if (lower.includes("python") || lower.includes("dsa")) {
+          roadmapTitle = "Python Programming & DSA Mastery Path";
+          estimatedTotalHours = "48 hours";
+          parsedSteps = [
+            {
+              stepNumber: 1,
+              title: "Python Fundamentals & Syntax",
+              topic: "Basic Programming",
+              description:
+                "Master core variables, primitive types, loops (for/while), conditionals, string manipulations, and basic collections (lists, tuples, dicts).",
+              timeEstimate: "6 hours",
+            },
+            {
+              stepNumber: 2,
+              title: "Functions, Comprehensions & Error Handling",
+              topic: "Intermediate Fundamentals",
+              description:
+                "Build reusable functions, understand variable scope (*args/**kwargs), list/dict comprehensions, file operations, and try-except blocks.",
+              timeEstimate: "6 hours",
+            },
+            {
+              stepNumber: 3,
+              title: "Object-Oriented Programming (OOP)",
+              topic: "OOP Principles",
+              description:
+                "Learn classes and instances, dunder methods (__init__, __str__), encapsulation, inheritance, method overriding, and polymorphism.",
+              timeEstimate: "8 hours",
+            },
+            {
+              stepNumber: 4,
+              title: "Linear Data Structures: Arrays, Stacks & Queues",
+              topic: "Data Structures",
+              description:
+                "Implement and analyze array manipulations, singly/doubly linked lists, stack LIFO behaviors, queue FIFO buffers, and hash tables.",
+              timeEstimate: "10 hours",
+            },
+            {
+              stepNumber: 5,
+              title: "Searching, Sorting & Asymptotic Analysis",
+              topic: "Core Algorithms",
+              description:
+                "Master Big-O time and space complexity, binary search, two-pointer techniques, recursion, and sorting algorithms (Quicksort, Mergesort).",
+              timeEstimate: "8 hours",
+            },
+            {
+              stepNumber: 6,
+              title: "Non-Linear Structures & LeetCode Problem Solving",
+              topic: "DSA Mastery",
+              description:
+                "Explore Binary Trees, BSTs, Graph traversals (BFS, DFS), dynamic programming basics, and solve classic interview coding challenges.",
+              timeEstimate: "10 hours",
+            },
+          ];
+        } else {
+          roadmapTitle = `${targetSkill} Comprehensive Roadmap`;
+          estimatedTotalHours = "35 hours";
+          parsedSteps = [
+            {
+              stepNumber: 1,
+              title: `${targetSkill} Foundations & Core Principles`,
+              topic: "Foundations",
+              description: `Grasp the essential concepts, environment setup, and fundamental architecture of ${targetSkill}.`,
+              timeEstimate: "6 hours",
+            },
+            {
+              stepNumber: 2,
+              title: "Core Mechanics & Idiomatic Techniques",
+              topic: "Core Concepts",
+              description: `Deep dive into common design patterns, workflows, and best practices in ${targetSkill}.`,
+              timeEstimate: "8 hours",
+            },
+            {
+              stepNumber: 3,
+              title: "Advanced Implementations & Performance",
+              topic: "Advanced Patterns",
+              description: `Tackle complex problems, optimize performance, and avoid common cognitive misconceptions in ${targetSkill}.`,
+              timeEstimate: "10 hours",
+            },
+            {
+              stepNumber: 4,
+              title: "Hands-on Projects & Problem Solving",
+              topic: "Practical Mastery",
+              description: `Build end-to-end applications and solve realistic engineering challenges using ${targetSkill}.`,
+              timeEstimate: "11 hours",
+            },
+          ];
+        }
+      }
+
+      // 4. For each milestone chunk, gather verified live DuckDuckGo internet resources in parallel
+      const enrichedSteps = await Promise.all(
+        parsedSteps.map(async (step, index) => {
+          const stepNum = step.stepNumber || index + 1;
+          const resources = await fetchMilestoneResources(targetSkill, step.title, step.topic);
+          return {
+            id: `step_${stepNum}_${Math.random().toString(36).substring(2, 8)}`,
+            stepNumber: stepNum,
+            title: step.title,
+            topic: step.topic,
+            description: step.description,
             completed: false,
-            timeEstimate: "1.5 hours",
-            resources: [
-              {
-                title: "Strang: Symmetric Matrices and Orthogonality",
-                type: "video",
-                url: "https://youtube.com",
-                source: "MIT 18.06",
-              },
-              {
-                title: "Interactive Eigenspace Visualizer",
-                type: "practice",
-                url: "https://mathlets.org",
-                source: "Mathlets",
-              },
-            ],
-          },
-        ],
-      });
+            timeEstimate: step.timeEstimate || "4-6 hours",
+            resources,
+          };
+        }),
+      );
+
+      const generatedRoadmap = {
+        id: `rm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        topic: targetSkill,
+        roadmapTitle,
+        estimatedTotalHours,
+        steps: enrichedSteps,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      res.json(generatedRoadmap);
     } catch (err: any) {
+      console.error("Roadmap generation error:", err);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Supabase Roadmap History Endpoints ---
+  app.get("/api/roadmaps", async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+
+    if (!supabaseUrl || !anonKey || !token) {
+      return res.json({ roadmaps: [] });
+    }
+
+    try {
+      const userHeaders = { apikey: anonKey, Authorization: `Bearer ${token}` };
+      const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), {
+        headers: userHeaders,
+      });
+      if (!userResponse.ok) return res.json({ roadmaps: [] });
+
+      const roadmapsUrl = new URL("/rest/v1/roadmaps", supabaseUrl);
+      roadmapsUrl.searchParams.set("select", "id,topic,steps_json,created_at");
+      roadmapsUrl.searchParams.set("order", "created_at.desc");
+
+      const rmResponse = await fetch(roadmapsUrl, { headers: userHeaders });
+      if (!rmResponse.ok) return res.json({ roadmaps: [] });
+
+      const records = (await rmResponse.json()) as any[];
+      const roadmaps = records.map((r) => ({
+        id: r.id,
+        topic: r.topic || "Learning Roadmap",
+        ...(typeof r.steps_json === "object" ? r.steps_json : {}),
+        createdAt: r.created_at,
+      }));
+
+      res.json({ roadmaps });
+    } catch (e) {
+      console.warn("Supabase fetch roadmaps fallback:", e);
+      res.json({ roadmaps: [] });
+    }
+  });
+
+  app.post("/api/roadmaps", async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+
+    if (!supabaseUrl || !anonKey || !token) {
+      return res.json({ success: true, localOnly: true });
+    }
+
+    try {
+      const userHeaders = {
+        apikey: anonKey,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      };
+      const userResponse = await fetch(new URL("/auth/v1/user", supabaseUrl), {
+        headers: userHeaders,
+      });
+      if (!userResponse.ok) return res.json({ success: true, localOnly: true });
+      const userData = (await userResponse.json()) as any;
+
+      const roadmapData = req.body;
+      const roadmapsUrl = new URL("/rest/v1/roadmaps", supabaseUrl);
+
+      const dbPayload = {
+        id: roadmapData.id?.startsWith("rm_") ? undefined : roadmapData.id,
+        user_id: userData.id,
+        topic: roadmapData.topic || roadmapData.roadmapTitle || "Custom Skill",
+        steps_json: {
+          roadmapTitle: roadmapData.roadmapTitle,
+          estimatedTotalHours: roadmapData.estimatedTotalHours,
+          steps: roadmapData.steps,
+        },
+      };
+
+      const saveRes = await fetch(roadmapsUrl, {
+        method: "POST",
+        headers: userHeaders,
+        body: JSON.stringify(dbPayload),
+      });
+
+      if (!saveRes.ok) {
+        console.warn("Supabase roadmap save warning:", await saveRes.text());
+      }
+      res.json({ success: true });
+    } catch (e) {
+      console.warn("Supabase save roadmap error:", e);
+      res.json({ success: true, localOnly: true });
+    }
+  });
+
+  app.delete("/api/roadmaps/:id", async (req, res) => {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+
+    if (!supabaseUrl || !anonKey || !token) {
+      return res.json({ success: true });
+    }
+
+    try {
+      const userHeaders = { apikey: anonKey, Authorization: `Bearer ${token}` };
+      const roadmapsUrl = new URL("/rest/v1/roadmaps", supabaseUrl);
+      roadmapsUrl.searchParams.set("id", `eq.${req.params.id}`);
+
+      await fetch(roadmapsUrl, {
+        method: "DELETE",
+        headers: userHeaders,
+      });
+      res.json({ success: true });
+    } catch (e) {
+      console.warn("Supabase delete roadmap warning:", e);
+      res.json({ success: true });
     }
   });
 

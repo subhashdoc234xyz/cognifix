@@ -747,7 +747,12 @@ export default function App() {
         )}
 
         {currentView === "roadmap" && (
-          <RoadmapView steps={roadmapSteps} onNavigate={handleNavigate} />
+          <RoadmapView
+            steps={roadmapSteps}
+            onNavigate={handleNavigate}
+            userId={user.id}
+            accessToken={accessToken}
+          />
         )}
 
         {currentView === "teacher-portal" && (
