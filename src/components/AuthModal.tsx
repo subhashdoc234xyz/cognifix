@@ -2,6 +2,15 @@ import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { Sparkles, Eye, EyeOff, X, Lock, Mail } from 'lucide-react';
 
+const GoogleMark = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+    <path fill="#4285F4" d="M21.35 12.23c0-.71-.06-1.22-.2-1.75H12v3.45h5.37c-.11.86-.73 2.15-2.1 3.02l-.02.12 3.05 2.36.21.02c1.94-1.79 2.84-4.42 2.84-7.22Z" />
+    <path fill="#34A853" d="M12 21.7c2.63 0 4.84-.87 6.45-2.36l-3.07-2.38c-.82.57-1.92.97-3.38.97a5.85 5.85 0 0 1-5.52-4.04l-.11.01-3.18 2.45-.04.11A9.75 9.75 0 0 0 12 21.7Z" />
+    <path fill="#FBBC05" d="M6.48 13.89A5.93 5.93 0 0 1 6.17 12c0-.66.12-1.3.3-1.89v-.13L3.25 7.5l-.1.05A9.74 9.74 0 0 0 2.3 12c0 1.61.39 3.13.85 4.45l3.33-2.56Z" />
+    <path fill="#EA4335" d="M12 6.06c1.84 0 3.08.8 3.79 1.46l2.77-2.7C16.83 3.2 14.63 2.3 12 2.3a9.75 9.75 0 0 0-8.85 5.25l3.32 2.57A5.87 5.87 0 0 1 12 6.06Z" />
+  </svg>
+);
+
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -75,6 +84,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }, 600);
   };
 
+  const handleGoogleSignIn = () => {
+    setNotification('Google sign-in needs your OAuth client ID before it can be connected.');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#bfc7d2]/40 overflow-hidden">
@@ -134,6 +147,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={mode === 'signin' ? handleSignIn : handleSignUp} className="p-6 space-y-4">
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#bfc7d2]/70 bg-white py-3 text-xs font-bold text-[#0b1c30] transition hover:bg-[#f8f9ff] hover:border-[#006096]/50"
+          >
+            <GoogleMark />
+            Continue with Google
+          </button>
+
+          <div className="relative flex items-center justify-center py-1">
+            <div className="w-full border-t border-[#bfc7d2]/40" />
+            <span className="absolute bg-white px-3 text-[10px] font-semibold uppercase tracking-wide text-[#707882]">or continue with email</span>
+          </div>
           <div>
             <label className="block text-xs font-semibold text-[#0b1c30] mb-1.5">
               Institutional or Personal Email
