@@ -55,7 +55,9 @@ async function startServer() {
 
   app.post("/api/uploads/wrong-answer", express.raw({ type: "*/*", limit: "30mb" }), async (req, res) => {
     const supabaseUrl = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Supports both legacy service-role JWTs and Supabase's current sb_secret keys.
+    // Secret keys are API keys, not JWTs, and must never be put in Authorization.
+    const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     const anonKey = process.env.SUPABASE_ANON_KEY;
     const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
     const mimeType = (req.header("content-type") || "").split(";", 1)[0].trim().toLowerCase();
@@ -72,14 +74,14 @@ async function startServer() {
       try { rawName = decodeURIComponent(rawName); } catch { rawName = "wrong-answer"; }
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "wrong-answer";
       storagePath = `${authUser.id}/${Date.now()}-${safeName}`;
-      const storageResponse = await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "POST", headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": mimeType, "x-upsert": "false" }, body: new Uint8Array(req.body) });
+      const storageResponse = await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "POST", headers: { apikey: serviceKey, "Content-Type": mimeType, "x-upsert": "false" }, body: new Uint8Array(req.body) });
       if (!storageResponse.ok) throw new Error(`Storage returned ${storageResponse.status}`);
-      const recordResponse = await fetch(new URL("/rest/v1/wrong_answer_uploads", supabaseUrl), { method: "POST", headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": "application/json", Prefer: "return=representation" }, body: JSON.stringify({ user_id: authUser.id, storage_path: storagePath, original_name: rawName, mime_type: mimeType, size_bytes: req.body.length }) });
+      const recordResponse = await fetch(new URL("/rest/v1/wrong_answer_uploads", supabaseUrl), { method: "POST", headers: { apikey: serviceKey, "Content-Type": "application/json", Prefer: "return=representation" }, body: JSON.stringify({ user_id: authUser.id, storage_path: storagePath, original_name: rawName, mime_type: mimeType, size_bytes: req.body.length }) });
       if (!recordResponse.ok) throw new Error(`Database returned ${recordResponse.status}`);
       res.status(201).json({ path: storagePath, message: "Upload saved." });
     } catch (error) {
       if (storagePath) {
-        await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "DELETE", headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }).catch(() => undefined);
+        await fetch(new URL(`/storage/v1/object/wrong-answer-uploads/${storagePath}`, supabaseUrl), { method: "DELETE", headers: { apikey: serviceKey } }).catch(() => undefined);
       }
       console.error("Wrong answer upload failed:", error);
       res.status(502).json({ error: "Upload could not be saved. Run the Supabase SQL setup and try again." });

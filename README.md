@@ -23,17 +23,17 @@ View your app in AI Studio: https://ai.studio/apps/0fde7722-148d-4684-b2e4-6141c
 
 Students can upload a PDF, Word document (`.doc` or `.docx`), or JPG, PNG, and WEBP image from their dashboard. Each upload is capped at 30 MB and stored in the student's private Supabase folder.
 
-Before using uploads, run the complete [Supabase schema](./supabase-schema.sql) in the Supabase SQL Editor. It creates the private `wrong-answer-uploads` storage bucket, the `wrong_answer_uploads` metadata table, and row-level-security policies that restrict every file and record to its owner.
+Before using uploads, run [supabase-wrong-answer-uploads.sql](./supabase-wrong-answer-uploads.sql) by itself in the Supabase SQL Editor. It creates the private `wrong-answer-uploads` storage bucket, the `wrong_answer_uploads` metadata table, and row-level-security policies that restrict every file and record to its owner. This standalone migration is safe to run again.
 
 Set these server-side values in `.env`:
 
 ```env
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_SECRET_KEY=your_sb_secret_key
 ```
 
-Never expose `SUPABASE_SERVICE_ROLE_KEY` or any Groq key in client-side code.
+`SUPABASE_SERVICE_ROLE_KEY` remains supported for legacy projects, but new Supabase projects should use `SUPABASE_SECRET_KEY`. Never expose either server key or any Groq key in client-side code.
 
 ## Dedicated Groq keys by agent
 
